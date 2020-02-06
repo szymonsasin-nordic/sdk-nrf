@@ -34,6 +34,8 @@ void gps_control_enable(void);
 
 void gps_control_disable(void);
 
+void gps_control_set_reporting_interval(int interval);
+
 #ifdef __cplusplus
 }
 #endif

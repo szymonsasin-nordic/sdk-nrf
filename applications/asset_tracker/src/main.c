@@ -116,6 +116,9 @@ static atomic_val_t send_data_enable;
 /* Flag used for flip detection */
 static bool flip_mode_enabled = true;
 
+/* Current state of activity monitor */
+static motion_activity_state_t last_activity_state = MOTION_ACTIVITY_NOT_KNOWN;
+
 /* Variable to keep track of nRF cloud user association request. */
 static atomic_val_t association_requested;
 static atomic_val_t reconnect_to_cloud;
@@ -376,39 +379,81 @@ static void button_send(bool pressed)
 }
 #endif
 
+static bool motion_activity_is_active(void)
+{
+	return (last_activity_state == MOTION_ACTIVITY_ACTIVE);
+}
+
 /**@brief Callback from the motion module. Sends motion data to cloud. */
 static void motion_handler(motion_data_t  motion_data)
 {
 	static motion_orientation_state_t last_orientation_state =
 		MOTION_ORIENTATION_NOT_KNOWN;
 
-	if (motion_data.orientation == last_orientation_state) {
+	/* toggle state since the accelerometer does not report which state occurred */
+	last_activity_state = (last_activity_state == MOTION_ACTIVITY_INACTIVE) ?
+			      MOTION_ACTIVITY_ACTIVE : MOTION_ACTIVITY_INACTIVE;
+
+	if (gps_control_is_active()) {
+#if IS_ENABLED(CONFIG_GPS_START_ON_MOTION)
+		if (!motion_activity_is_active()) {
+			gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_OVERDUE);
+		}
+#endif
 		return;
 	}
 
-	if (!flip_mode_enabled || !atomic_get(&send_data_enable)
-		|| gps_control_is_active()) {
-		return;
-	}
+	if (motion_data.orientation != last_orientation_state) {
 
-	struct cloud_msg msg = {
-		.qos = CLOUD_QOS_AT_MOST_ONCE,
-		.endpoint.type = CLOUD_EP_TOPIC_MSG
-	};
+		if (flip_mode_enabled && atomic_get(&send_data_enable)) {
 
-	int err;
+			struct cloud_msg msg = {
+				.qos = CLOUD_QOS_AT_MOST_ONCE,
+				.endpoint.type = CLOUD_EP_TOPIC_MSG
+			};
 
-	if (cloud_encode_motion_data(&motion_data, &msg) == 0) {
-		err = cloud_send(cloud_backend, &msg);
-		cloud_release_data(&msg);
-		if (err) {
-			LOG_ERR("Transmisison of motion data failed: %d", err);
-			cloud_error_handler(err);
-			return;
+			int err = 0;
+
+			if (cloud_encode_motion_data(&motion_data, &msg) == 0) {
+				err = cloud_send(cloud_backend, &msg);
+				cloud_release_data(&msg);
+				if (err) {
+					LOG_ERR("Transmisison of motion data failed: %d", err);
+					cloud_error_handler(err);
+				}
+			}
+
+			if (!err) {
+				last_orientation_state = motion_data.orientation;
+			}
 		}
 	}
 
-	last_orientation_state = motion_data.orientation;
+#if IS_ENABLED(CONFIG_GPS_START_ON_MOTION)
+	if (!gps_control_is_enabled()) {
+		return;
+	}
+
+	if (motion_activity_is_active()) {
+		char buf[100];
+		snprintf(buf, sizeof(buf),
+			"Motion triggering GPS; accel, %.1f, %.1f, %.1f",
+			motion_data.acceleration.x, 
+			motion_data.acceleration.y, 
+			motion_data.acceleration.z);
+		LOG_INF("%s", buf);
+		
+		/* @TODO: limit frequency of these to CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL;
+		 or, adjust period in gps_controller() based on is_inactive() */
+		gps_control_start(K_SECONDS(1));
+		
+		gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL);
+	}
+	else {
+		gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_OVERDUE);
+	}
+#endif
+
 }
 
 static void cloud_cmd_handle_modem_at_cmd(const char * const at_cmd)
@@ -447,6 +492,8 @@ static void cloud_cmd_handler(struct cloud_command *cmd)
 	if ((cmd->channel == CLOUD_CHANNEL_GPS) &&
 	    (cmd->group == CLOUD_CMD_GROUP_CFG_SET) &&
 	    (cmd->type == CLOUD_CMD_ENABLE)) {
+		LOG_INF("GPS commanded %s from cloud", 
+			cmd->data.sv.state == CLOUD_CMD_STATE_TRUE ? "on" : "off");
 		set_gps_enable(cmd->data.sv.state == CLOUD_CMD_STATE_TRUE);
 	} else if ((cmd->channel == CLOUD_CHANNEL_MODEM) &&
 		   (cmd->group == CLOUD_CMD_GROUP_COMMAND) &&
@@ -1029,6 +1076,8 @@ static void sensors_init(void)
 {
 	int err;
 
+	gps_control_init(&application_work_q, gps_trigger_handler);
+
 	err = motion_init_and_start(motion_handler);
 	if (err) {
 		LOG_ERR("motion module init failed, error: %d", err);
@@ -1054,8 +1103,8 @@ static void sensors_init(void)
 		button_sensor_init();
 	}
 
-	gps_control_init(&application_work_q, gps_trigger_handler);
 	if (IS_ENABLED(CONFIG_GPS_START_AFTER_CLOUD_EVT_READY)) {
+		LOG_INF("Enabling GPS at startup");
 		set_gps_enable(true);
 	}
 }
