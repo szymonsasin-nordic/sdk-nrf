@@ -22,6 +22,7 @@
 #include <net/cloud.h>
 #include <net/socket.h>
 #include <nrf_cloud.h>
+#include <time.h>
 
 #if defined(CONFIG_BOOTLOADER_MCUBOOT)
 #include <dfu/mcuboot.h>
@@ -389,6 +390,7 @@ static void motion_handler(motion_data_t  motion_data)
 {
 	static motion_orientation_state_t last_orientation_state =
 		MOTION_ORIENTATION_NOT_KNOWN;
+	static struct timespec last_gps_attempt = {.tv_nsec = 0, .tv_sec = 0};
 
 	/* toggle state since the accelerometer does not report which state occurred */
 	last_activity_state = (last_activity_state == MOTION_ACTIVITY_INACTIVE) ?
@@ -445,7 +447,22 @@ static void motion_handler(motion_data_t  motion_data)
 		
 		/* @TODO: limit frequency of these to CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL;
 		 or, adjust period in gps_controller() based on is_inactive() */
-		gps_control_start(K_SECONDS(1));
+		struct timespec now;
+		time_t time_since_fix_attempt = 1;
+		int err;
+
+		err = clock_gettime(CLOCK_REALTIME, &now);
+		if (err) {
+			LOG_ERR("Error getting time");
+		}
+		else {
+			time_since_fix_attempt = now.tv_sec - last_gps_attempt.tv_sec;
+			if (time_since_fix_attempt < CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL) {
+				last_gps_attempt = now;
+			}
+		}
+		/* PETE: make gps_controller keep track of time since fix attempt, based on this code; use it here */
+		gps_control_start((u32_t) K_SECONDS(time_since_fix_attempt));
 		
 		gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL);
 	}
