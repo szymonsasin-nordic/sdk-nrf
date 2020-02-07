@@ -31,8 +31,7 @@ static struct {
 
 static atomic_t gps_is_active;
 static atomic_t gps_is_enabled;
-static int gps_reporting_interval_seconds = 
-	   CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL;
+static int gps_reporting_interval_seconds;
 static s64_t gps_last_active_time;
 
 static int start(void)
@@ -130,6 +129,7 @@ static void gps_work_handler(struct k_work *work)
 
 		gps_work.type = GPS_WORK_START;
 
+
 		LOG_INF("The device will try to get fix again in %d seconds",
 			gps_reporting_interval_seconds);
 
@@ -138,14 +138,6 @@ static void gps_work_handler(struct k_work *work)
 	}
 }
 #endif /* !defined(GPS_SIM) */
-
-void gps_control_set_reporting_interval(int interval)
-{
-	if (gps_reporting_interval_seconds != interval) {
-		LOG_INF("GPS reporting interval changed to %d", interval);
-		gps_reporting_interval_seconds = interval;
-	}
-}
 
 s64_t gps_control_get_last_active_time(void)
 {
@@ -247,10 +239,9 @@ int gps_control_init(struct k_work_q *work_q, gps_trigger_handler_t handler)
 		return err;
 	}
 
-	int interval = IS_ENABLED(CONFIG_GPS_START_ON_MOTION) ? 
+	gps_reporting_interval_seconds = IS_ENABLED(CONFIG_GPS_START_ON_MOTION) ? 
 		CONFIG_GPS_CONTROL_FIX_CHECK_OVERDUE : 
 		CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL;
-	gps_control_set_reporting_interval(interval);
 
 #if !defined(CONFIG_GPS_SIM)
 	k_delayed_work_init(&gps_work.work, gps_work_handler);
