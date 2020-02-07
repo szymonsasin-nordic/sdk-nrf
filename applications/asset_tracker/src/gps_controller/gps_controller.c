@@ -33,6 +33,7 @@ static atomic_t gps_is_active;
 static atomic_t gps_is_enabled;
 static int gps_reporting_interval_seconds = 
 	   CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL;
+static s64_t gps_last_active_time;
 
 static int start(void)
 {
@@ -100,6 +101,7 @@ static void gps_work_handler(struct k_work *work)
 		}
 
 		LOG_INF("GPS operation started");
+		gps_last_active_time = k_uptime_get();
 
 		atomic_set(&gps_is_active, 1);
 		ui_led_set_pattern(UI_LED_GPS_SEARCHING);
@@ -118,6 +120,7 @@ static void gps_work_handler(struct k_work *work)
 		}
 
 		LOG_INF("GPS operation was stopped");
+		gps_last_active_time = k_uptime_get();
 
 		atomic_set(&gps_is_active, 0);
 
@@ -138,8 +141,15 @@ static void gps_work_handler(struct k_work *work)
 
 void gps_control_set_reporting_interval(int interval)
 {
-	LOG_INF("GPS reporting interval changed to %d", interval);
-	gps_reporting_interval_seconds = interval;
+	if (gps_reporting_interval_seconds != interval) {
+		LOG_INF("GPS reporting interval changed to %d", interval);
+		gps_reporting_interval_seconds = interval;
+	}
+}
+
+s64_t gps_control_get_last_active_time(void)
+{
+	return gps_last_active_time;
 }
 
 bool gps_control_is_active(void)

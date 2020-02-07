@@ -36,6 +36,8 @@ void gps_control_disable(void);
 
 void gps_control_set_reporting_interval(int interval);
 
+s64_t gps_control_get_last_active_time(void);
+
 #ifdef __cplusplus
 }
 #endif

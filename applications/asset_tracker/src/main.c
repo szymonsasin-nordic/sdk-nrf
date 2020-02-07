@@ -22,6 +22,7 @@
 #include <net/cloud.h>
 #include <net/socket.h>
 #include <nrf_cloud.h>
+#include <hal/nrf_power.h>
 
 #if defined(CONFIG_BOOTLOADER_MCUBOOT)
 #include <dfu/mcuboot.h>
@@ -99,6 +100,7 @@ static struct k_work_q application_work_q;
 static struct cloud_backend *cloud_backend;
 
 /* Sensor data */
+static s64_t gps_last_fix_time;
 static struct gps_data gps_data;
 static struct cloud_channel_data gps_cloud_data;
 static struct cloud_channel_data button_cloud_data;
@@ -328,6 +330,8 @@ static void gps_trigger_handler(struct device *dev, struct gps_trigger *trigger)
 		return;
 	}
 
+	gps_last_fix_time = k_uptime_get();
+
 	if (++fix_count < CONFIG_GPS_CONTROL_FIX_COUNT) {
 		return;
 	}
@@ -389,7 +393,6 @@ static void motion_handler(motion_data_t  motion_data)
 {
 	static motion_orientation_state_t last_orientation_state =
 		MOTION_ORIENTATION_NOT_KNOWN;
-	static s64_t last_gps_attempt_ms = 0;
 
 	/* toggle state since the accelerometer does not report which state occurred */
 	last_activity_state = (last_activity_state == MOTION_ACTIVITY_INACTIVE) ?
@@ -436,6 +439,28 @@ static void motion_handler(motion_data_t  motion_data)
 	}
 
 	if (motion_activity_is_active()) {
+		static s64_t next_active_time;
+		s64_t last_active_time = gps_control_get_last_active_time() / 1000;
+		s64_t now = k_uptime_get() / 1000;
+		s64_t time_since_fix_attempt = now - last_active_time;
+		s64_t time_until_next_attempt = next_active_time - now;
+
+		LOG_INF("Last at %lld s, now %lld s, next %lld s; %lld secs since last, %lld secs until next", 
+			last_active_time, now, next_active_time,
+			time_since_fix_attempt, time_until_next_attempt);
+
+		if (time_until_next_attempt >= 0) {
+			LOG_INF("keeping original schedule.");
+			return;
+		}
+
+		time_since_fix_attempt = MAX(0,(MIN(time_since_fix_attempt,
+			CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL)));
+		s64_t time_to_start_next_fix = 1 + CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL - 
+			time_since_fix_attempt;
+
+		next_active_time = now + time_to_start_next_fix;
+
 		char buf[100];
 		snprintf(buf, sizeof(buf),
 			"Motion triggering GPS; accel, %.1f, %.1f, %.1f",
@@ -443,23 +468,9 @@ static void motion_handler(motion_data_t  motion_data)
 			motion_data.acceleration.y, 
 			motion_data.acceleration.z);
 		LOG_INF("%s", buf);
-		
-		/* @TODO: limit frequency of these to CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL;
-		 or, adjust period in gps_controller() based on is_inactive() */
-		s64_t time_since_fix_attempt_s = k_uptime_delta(&last_gps_attempt_ms) / 1000;
-		time_since_fix_attempt_s = MAX(0, (MIN(time_since_fix_attempt_s, 
-			CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL)));
-		s64_t time_to_start_next_fix_s = 1 + CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL - 
-			time_since_fix_attempt_s;
-		last_gps_attempt_ms += (s64_t)time_to_start_next_fix_s * 1000;
-		/* PETE: make gps_controller keep track of time since fix attempt, based on this code; use it here */
-		LOG_INF("Starting GPS in %lld seconds", time_to_start_next_fix_s);
-		gps_control_start((uint32_t)K_SECONDS(time_to_start_next_fix_s));
-		
-		gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL);
-	}
-	else {
-		gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_OVERDUE);
+
+		LOG_INF("starting GPS in %lld seconds", time_to_start_next_fix);
+		gps_control_start((uint32_t)K_SECONDS(time_to_start_next_fix));
 	}
 #endif
 
@@ -1004,6 +1015,10 @@ static void long_press_handler(struct k_work *work)
 		return;
 	}
 
+	u32_t rr = nrf_power_resetreas_get(NRF_POWER_NS);
+
+	LOG_INF("Reset Reason: 0x%08x", rr);
+
 	/* Toggle GPS state */
 	set_gps_enable(!gps_control_is_enabled());
 }
@@ -1086,6 +1101,9 @@ static void sensors_init(void)
 	int err;
 
 	gps_control_init(&application_work_q, gps_trigger_handler);
+#if IS_ENABLED(CONFIG_GPS_START_ON_MOTION)
+	gps_control_set_reporting_interval(CONFIG_GPS_CONTROL_FIX_CHECK_OVERDUE);
+#endif
 
 	err = motion_init_and_start(motion_handler);
 	if (err) {
