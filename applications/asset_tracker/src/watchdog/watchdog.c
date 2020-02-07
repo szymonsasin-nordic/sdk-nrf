@@ -7,6 +7,8 @@
 #include <zephyr.h>
 #include <device.h>
 #include <drivers/watchdog.h>
+#include <hal/nrf_power.h>
+
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(watchdog, CONFIG_ASSET_TRACKER_LOG_LEVEL);
@@ -142,5 +144,10 @@ int watchdog_init_and_start(struct k_work_q *work_q)
 		return -EINVAL;
 	}
 	second_work_q = work_q;
+
+	u32_t rr = nrf_power_resetreas_get(NRF_POWER_NS);
+	if (rr & NRF_POWER_RESETREAS_DOG_MASK) {
+		LOG_ERR("Watchdog caused reset!  Reset Reason: 0x%08x", rr);
+	}
 	return watchdog_enable(&wdt_data);
 }
