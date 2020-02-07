@@ -22,6 +22,7 @@
 #include <net/cloud.h>
 #include <net/socket.h>
 #include <nrf_cloud.h>
+#include <hal/nrf_power.h>
 
 #if defined(CONFIG_BOOTLOADER_MCUBOOT)
 #include <dfu/mcuboot.h>
@@ -1012,6 +1013,9 @@ static void long_press_handler(struct k_work *work)
 		LOG_INF("Link not ready, long press disregarded");
 		return;
 	}
+
+	u32_t rr = nrf_power_resetreas_get(NRF_POWER_NS);
+	LOG_INF("Reset Reason: 0x%08x", rr);
 
 	/* Toggle GPS state */
 	set_gps_enable(!gps_control_is_enabled());
