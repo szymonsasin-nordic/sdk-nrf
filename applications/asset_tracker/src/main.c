@@ -170,6 +170,31 @@ static void device_status_send(struct k_work *work);
 static void cycle_cloud_connection(struct k_work *work);
 static void set_gps_enable(const bool enable);
 
+
+
+/**@brief Send data to a cloud.
+ *
+ * @param backend Pointer to a cloud backend structure.
+ * @param msg     Pointer to cloud message structure.
+ *
+ * @return 0 or a negative error code indicating reason of failure.
+ */
+static int cloud_send_trace(const struct cloud_backend *const backend,
+			     struct cloud_msg *msg, int index)
+{
+	int ret;
+	static char users[10] = ".........";
+	users[index] = '^';
+	LOG_INF("%s", users);
+	ret = cloud_send(backend, msg);
+	users[index] = 'v';
+	LOG_INF("%s", users);
+	return ret;
+}
+
+
+
+
 /**@brief nRF Cloud error handler. */
 void error_handler(enum error_type err_type, int err_code)
 {
@@ -307,7 +332,7 @@ static void send_modem_at_cmd_work_fn(struct k_work *work)
 		LOG_ERR("[%s:%d] cloud_encode_data failed with error %d",
 			__func__, __LINE__, err);
 	} else {
-		err = cloud_send(cloud_backend, &msg);
+		err = cloud_send_trace(cloud_backend, &msg, 0);
 		cloud_release_data(&msg);
 		if (err) {
 			LOG_ERR("[%s:%d] cloud_send failed with error %d",
@@ -455,7 +480,7 @@ static void motion_handler(motion_data_t  motion_data)
 			int err = 0;
 
 			if (cloud_encode_motion_data(&motion_data, &msg) == 0) {
-				err = cloud_send(cloud_backend, &msg);
+				err = cloud_send_trace(cloud_backend, &msg, 1);
 				cloud_release_data(&msg);
 				if (err) {
 					LOG_ERR("Transmisison of motion data failed: %d", err);
@@ -719,7 +744,7 @@ static void env_data_send(void)
 	if (env_sensors_get_temperature(&env_data) == 0) {
 		if (cloud_is_send_allowed(CLOUD_CHANNEL_TEMP, env_data.value) &&
 		    cloud_encode_env_sensors_data(&env_data, &msg) == 0) {
-			err = cloud_send(cloud_backend, &msg);
+			err = cloud_send_trace(cloud_backend, &msg, 2);
 			cloud_release_data(&msg);
 			if (err) {
 				goto error;
@@ -731,7 +756,7 @@ static void env_data_send(void)
 		if (cloud_is_send_allowed(CLOUD_CHANNEL_HUMID,
 					  env_data.value) &&
 		    cloud_encode_env_sensors_data(&env_data, &msg) == 0) {
-			err = cloud_send(cloud_backend, &msg);
+			err = cloud_send_trace(cloud_backend, &msg, 3);
 			cloud_release_data(&msg);
 			if (err) {
 				goto error;
@@ -743,7 +768,7 @@ static void env_data_send(void)
 		if (cloud_is_send_allowed(CLOUD_CHANNEL_AIR_PRESS,
 					  env_data.value) &&
 		    cloud_encode_env_sensors_data(&env_data, &msg) == 0) {
-			err = cloud_send(cloud_backend, &msg);
+			err = cloud_send_trace(cloud_backend, &msg, 4);
 			cloud_release_data(&msg);
 			if (err) {
 				goto error;
@@ -755,7 +780,7 @@ static void env_data_send(void)
 		if (cloud_is_send_allowed(CLOUD_CHANNEL_AIR_QUAL,
 					  env_data.value) &&
 		    cloud_encode_env_sensors_data(&env_data, &msg) == 0) {
-			err = cloud_send(cloud_backend, &msg);
+			err = cloud_send_trace(cloud_backend, &msg, 5);
 			cloud_release_data(&msg);
 			if (err) {
 				goto error;
@@ -802,7 +827,7 @@ void light_sensor_data_send(void)
 		return;
 	}
 
-	err = cloud_send(cloud_backend, &msg);
+	err = cloud_send_trace(cloud_backend, &msg, 6);
 	cloud_release_data(&msg);
 
 	if (err) {
@@ -840,7 +865,7 @@ static void sensor_data_send(struct cloud_channel_data *data)
 		LOG_ERR("Unable to encode cloud data: %d", err);
 	}
 
-	err = cloud_send(cloud_backend, &msg);
+	err = cloud_send_trace(cloud_backend, &msg, 7);
 
 	cloud_release_data(&msg);
 
