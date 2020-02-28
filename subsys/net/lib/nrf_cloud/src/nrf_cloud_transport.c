@@ -89,6 +89,9 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #define NCT_SHADOW_GET AWS "%s/shadow/get"
 #define NCT_SHADOW_GET_LEN (AWS_LEN + NRF_CLOUD_CLIENT_ID_LEN + 11)
 
+#define NCT_WILL_TOPIC "presence/%s/lwt"
+#define NCT_WILL_TOPIC_LEN (NRF_CLOUD_CLIENT_ID_LEN + 13)
+
 #ifdef CONFIG_APR_GATEWAY
 #define GET_PSK_ID "AT%CMNG=2,16842753,4"
 #define GET_PSK_ID_LEN (sizeof(GET_PSK_ID)-1)
@@ -111,6 +114,7 @@ static char rejected_topic[NCT_REJECTED_TOPIC_LEN + 1];
 static char update_delta_topic[NCT_UPDATE_DELTA_TOPIC_LEN + 1];
 static char update_topic[NCT_UPDATE_TOPIC_LEN + 1];
 static char shadow_get_topic[NCT_SHADOW_GET_LEN + 1];
+static char will_topic[NCT_WILL_TOPIC_LEN + 1];
 
 #if defined(CONFIG_AWS_FOTA)
 #define NCT_M_D_TOPIC_PREFIX "m/d/"
@@ -406,7 +410,7 @@ static bool control_channel_topic_match(u32_t list_id,
 }
 
 /* Function to get the client id */
-static int nct_client_id_get(char *id)
+int nct_client_id_get(char *id, size_t id_len)
 {
 #if !defined(NRF_CLOUD_CLIENT_ID)
 #if defined(CONFIG_BSD_LIBRARY)
@@ -467,7 +471,7 @@ static int nct_client_id_get(char *id)
 		}
 		printk("Gateway ID:%s\n", gateway_id);
 
-		snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s", gateway_id);
+		snprintf(id, id_len, "%s", gateway_id);
 	}
 #else
 	bytes_written = nrf_write(at_socket_fd, "AT+CGSN", 7);
@@ -477,7 +481,7 @@ static int nct_client_id_get(char *id)
 	__ASSERT_NO_MSG(bytes_read == NRF_IMEI_LEN);
 	imei_buf[NRF_IMEI_LEN] = 0;
 
-	snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "nrf-%s", imei_buf);
+	snprintf(id, id_len, "nrf-%s", imei_buf);
 #endif
 
 	ret = nrf_close(at_socket_fd);
@@ -486,7 +490,7 @@ static int nct_client_id_get(char *id)
 #error Missing NRF_CLOUD_CLIENT_ID
 #endif /* defined(CONFIG_BSD_LIBRARY) */
 #else
-	memcpy(id, NRF_CLOUD_CLIENT_ID, NRF_CLOUD_CLIENT_ID_LEN + 1);
+	memcpy(id, NRF_CLOUD_CLIENT_ID, id_len);
 #endif /* !defined(NRF_CLOUD_CLIENT_ID) */
 
 	LOG_INF("client_id = %s", log_strdup(id));
@@ -498,7 +502,7 @@ static int nct_topics_populate(void)
 {
 	int ret;
 
-	ret = nct_client_id_get(client_id_buf);
+	ret = nct_client_id_get(client_id_buf, sizeof(client_id_buf));
 	if (ret != 0) {
 		return ret;
 	}
@@ -544,6 +548,13 @@ static int nct_topics_populate(void)
 		return -ENOMEM;
 	}
 	LOG_DBG("shadow_get_topic: %s", log_strdup(shadow_get_topic));
+
+	ret = snprintf(will_topic, sizeof(will_topic),
+		       NCT_WILL_TOPIC, client_id_buf);
+	if (ret != NCT_WILL_TOPIC_LEN) {
+		return -ENOMEM;
+	}
+	LOG_DBG("will_topic: %s", log_strdup(will_topic));
 
 	return 0;
 }
@@ -773,10 +784,12 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 #endif /* defined(CONFIG_AWS_FOTA) */
 
 /* Connect to MQTT broker. */
-int nct_mqtt_connect(void)
+int nct_mqtt_connect(const struct cloud_cfg *const cfg)
 {
 	int err;
 	if (!initialized) {
+		struct mqtt_utf8 will_message;
+		struct mqtt_topic topic;
 
 		mqtt_client_init(&nct.client);
 
@@ -791,6 +804,41 @@ int nct_mqtt_connect(void)
 		nct.client.clean_session = 0U;
 		LOG_DBG("mqtt_connect requesting persistent session");
 #endif
+
+		if (cfg) {
+			const struct cloud_msg *msg;
+
+			msg = &cfg->cfg.mqtt.epitath_msg;
+
+			if (msg->endpoint.type == CLOUD_EP_TOPIC_STATE) {
+				topic.topic.utf8 = (u8_t *)update_topic;
+				topic.topic.size = NCT_UPDATE_TOPIC_LEN;
+			} else if (msg->endpoint.type == CLOUD_EP_TOPIC_WILL) {
+				topic.topic.utf8 = (u8_t *)will_topic;
+				topic.topic.size = NCT_WILL_TOPIC_LEN;
+			} else if (msg->endpoint.type == CLOUD_EP_URI) {
+				topic.topic.utf8 = msg->endpoint.str;
+				topic.topic.size = msg->endpoint.len;
+			} else {
+				LOG_ERR("Unsupported epitath endpoint %d",
+					(int)msg->endpoint.type);
+				return -EINVAL;
+			}
+
+			topic.qos = msg->qos;
+			nct.client.will_topic = &topic;
+			LOG_DBG("mqtt will topic set to %s, QoS=%u",
+				log_strdup(topic.topic.utf8), msg->qos);
+
+			will_message.utf8 = (u8_t *)msg->buf;
+			will_message.size = msg->len;
+			nct.client.will_message = &will_message;
+			LOG_DBG("mqtt will message set to %s",
+				log_strdup(msg->buf));
+
+			nct.client.will_retain = cfg->cfg.mqtt.retain;
+		}
+
 #if defined(CONFIG_MQTT_LIB_TLS)
 		nct.client.transport.type = MQTT_TRANSPORT_SECURE;
 		nct.client.rx_buf = nct.rx_buf;
@@ -821,6 +869,10 @@ int nct_mqtt_connect(void)
 		LOG_DBG("mqtt_connect failed %d", err);
 		return err;
 	}
+
+	/* will sent with connect message; no need to keep around */
+	nct.client.will_topic = NULL;
+	nct.client.will_message = NULL;
 
 	if (IS_ENABLED(CONFIG_NRF_CLOUD_NONBLOCKING_SEND)) {
 		err = fcntl(nct_socket_get(), F_SETFL, O_NONBLOCK);
@@ -1033,7 +1085,7 @@ int nct_init(void)
 }
 
 #if defined(CONFIG_NRF_CLOUD_STATIC_IPV4)
-int nct_connect(void)
+int nct_connect(const struct cloud_cfg *const cfg)
 {
 	int err;
 
@@ -1045,12 +1097,12 @@ int nct_connect(void)
 	broker->sin_port = htons(NRF_CLOUD_PORT);
 
 	LOG_DBG("IPv4 Address %s", CONFIG_NRF_CLOUD_STATIC_IPV4_ADDR);
-	err = nct_mqtt_connect();
+	err = nct_mqtt_connect(cfg);
 
 	return err;
 }
 #else
-int nct_connect(void)
+int nct_connect(const struct cloud_cfg *const cfg)
 {
 	int err;
 	struct addrinfo *result;
@@ -1091,7 +1143,7 @@ int nct_connect(void)
 
 			LOG_DBG("IPv4 address: %s", log_strdup(addr_str));
 
-			err = nct_mqtt_connect();
+			err = nct_mqtt_connect(cfg);
 			break;
 		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6)) &&
 			   (NRF_CLOUD_AF_FAMILY == AF_INET6)) {
@@ -1107,7 +1159,7 @@ int nct_connect(void)
 			broker->sin6_port = htons(NRF_CLOUD_PORT);
 
 			LOG_DBG("IPv6 Address");
-			err = nct_mqtt_connect();
+			err = nct_mqtt_connect(cfg);
 			break;
 		} else {
 			LOG_DBG("ai_addrlen = %u should be %u or %u",
@@ -1177,8 +1229,8 @@ int nct_cc_send(const struct nct_cc_data *cc_data)
 
 	publish.message_id = cc_data->id ? cc_data->id : ++msg_id;
 
-	LOG_DBG("mqtt_publish: id = %d opcode = %d len = %d", publish.message_id,
-		cc_data->opcode, cc_data->data.len);
+	LOG_DBG("mqtt_publish: id = %d opcode = %d len = %d",
+		publish.message_id, cc_data->opcode, cc_data->data.len);
 
 	int err = mqtt_publish(&nct.client, &publish);
 
