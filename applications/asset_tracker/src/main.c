@@ -1318,7 +1318,11 @@ void main(void)
 	work_init();
 	modem_configure();
 connect:
-	ret = cloud_connect(cloud_backend);
+	/* PETE: finish this: */
+	struct mqtt_topic will_topic;
+	struct mqtt_utf8 will_message;
+
+	ret = cloud_connect(cloud_backend, &will_topic, *will_message);
 	if (ret != CLOUD_CONNECT_RES_SUCCESS) {
 		cloud_connect_error_handler(ret);
 	} else {

@@ -596,7 +596,8 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 #endif /* defined(CONFIG_AWS_FOTA) */
 
 /* Connect to MQTT broker. */
-int nct_mqtt_connect(void)
+int nct_mqtt_connect(struct mqtt_topic *will_topic,
+		     struct mqtt_utf8 *will_message);
 {
 	int err;
 
@@ -796,7 +797,8 @@ int nct_init(void)
 }
 
 #if defined(CONFIG_NRF_CLOUD_STATIC_IPV4)
-int nct_connect(void)
+int nct_connect(struct mqtt_topic *will_topic,
+		struct mqtt_utf8 *will_message)
 {
 	int err;
 
@@ -808,12 +810,13 @@ int nct_connect(void)
 	broker->sin_port = htons(NRF_CLOUD_PORT);
 
 	LOG_DBG("IPv4 Address %s", CONFIG_NRF_CLOUD_STATIC_IPV4_ADDR);
-	err = nct_mqtt_connect();
+	err = nct_mqtt_connect(will_topic, will_message);
 
 	return err;
 }
 #else
-int nct_connect(void)
+int nct_connect(struct mqtt_topic *will_topic,
+		struct mqtt_utf8 *will_message)
 {
 	int err;
 	struct addrinfo *result;
@@ -847,7 +850,7 @@ int nct_connect(void)
 			broker->sin_port = htons(NRF_CLOUD_PORT);
 
 			LOG_DBG("IPv4 Address 0x%08x", broker->sin_addr.s_addr);
-			err = nct_mqtt_connect();
+			err = nct_mqtt_connect(will_topic, will_message);
 			break;
 		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6)) &&
 			   (NRF_CLOUD_AF_FAMILY == AF_INET6)) {
@@ -863,7 +866,7 @@ int nct_connect(void)
 			broker->sin6_port = htons(NRF_CLOUD_PORT);
 
 			LOG_DBG("IPv6 Address");
-			err = nct_mqtt_connect();
+			err = nct_mqtt_connect(will_topic, will_message);
 			break;
 		} else {
 			LOG_DBG("ai_addrlen = %u should be %u or %u",

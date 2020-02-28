@@ -60,8 +60,16 @@ int nct_socket_get(void);
 /**@brief Initialization routine for the transport. */
 int nct_init(void);
 
-/**@brief Establishes the transport connection. */
-int nct_connect(void);
+/**
+ * @brief Establishes the transport connection.
+ *
+ * @param will_topic optional topic.
+ *
+ * @param will_message optional message.
+ *
+ * @return result.
+ */
+int nct_connect(struct mqtt_topic *will_topic, struct mqtt_utf8 *will_message);
 
 /**@brief Establishes the logical control channel on the transport connection.
  */

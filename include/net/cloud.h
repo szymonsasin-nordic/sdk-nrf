@@ -130,7 +130,9 @@ struct cloud_api {
 	int (*init)(const struct cloud_backend *const backend,
 		    cloud_evt_handler_t handler);
 	int (*uninit)(const struct cloud_backend *const backend);
-	int (*connect)(const struct cloud_backend *const backend);
+	int (*connect)(const struct cloud_backend *const backend,
+		       struct mqtt_topic *will_topic,
+		       struct mqtt_utf8 *will_message);
 	int (*disconnect)(const struct cloud_backend *const backend);
 	int (*send)(const struct cloud_backend *const backend,
 		    const struct cloud_msg *const msg);
@@ -210,16 +212,22 @@ static inline int cloud_uninit(const struct cloud_backend *const backend)
  *
  * @param backend Pointer to a cloud backend structure.
  *
+ * @param will_topic Pointer to optional will topic.
+ *
+ * @param will_message Pointer to optional will message.
+ *
  * @return connect result defined by enum cloud_connect_result.
  */
-static inline int cloud_connect(const struct cloud_backend *const backend)
+static inline int cloud_connect(const struct cloud_backend *const backend,
+	struct mqtt_topic *will_topic,
+	struct mqtt_utf8 *will_message)
 {
 	if (backend == NULL || backend->api == NULL ||
 	    backend->api->connect == NULL) {
 		return CLOUD_CONNECT_RES_ERR_INVALID_PARAM;
 	}
 
-	return backend->api->connect(backend);
+	return backend->api->connect(backend, will_topic, will_message);
 }
 
 /**@brief Disconnect from a cloud backend.

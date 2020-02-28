@@ -83,12 +83,14 @@ int nrf_cloud_init(const struct nrf_cloud_init_param *param)
 	return 0;
 }
 
-int nrf_cloud_connect(const struct nrf_cloud_connect_param *param)
+int nrf_cloud_connect(const struct nrf_cloud_connect_param *param,
+		      struct mqtt_topic *will_topic,
+		      struct mqtt_utf8 *will_message)
 {
 	if (NOT_VALID_STATE(STATE_INITIALIZED)) {
 		return -EACCES;
 	}
-	return nct_connect();
+	return nct_connect(will_topic, will_message);
 }
 
 int nrf_cloud_disconnect(void)
@@ -318,11 +320,13 @@ static int uninit(const struct cloud_backend *const backend)
 	return 0;
 }
 
-static int connect(const struct cloud_backend *const backend)
+static int connect(const struct cloud_backend *const backend,
+		   struct mqtt_topic *will_topic,
+		   struct mqtt_utf8 *will_message)
 {
 	int err;
 
-	err = nrf_cloud_connect(NULL);
+	err = nrf_cloud_connect(NULL, will_topic, will_message);
 
 	switch (err) {
 	case 0:
