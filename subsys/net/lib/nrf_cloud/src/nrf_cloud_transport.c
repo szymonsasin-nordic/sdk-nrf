@@ -429,7 +429,7 @@ static bool control_channel_topic_match(uint32_t list_id,
 }
 
 /* Function to get the client id */
-static int nct_client_id_get(char *id)
+int nct_client_id_get(char *id, size_t id_len)
 {
 #if !defined(NRF_CLOUD_CLIENT_ID)
 #if defined(CONFIG_BSD_LIBRARY)
@@ -490,7 +490,7 @@ static int nct_client_id_get(char *id)
 		}
 		printk("Gateway ID:%s\n", gateway_id);
 
-		snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s", gateway_id);
+		snprintf(id, id_len, "%s", gateway_id);
 	}
 #else
 	bytes_written = nrf_write(at_socket_fd, "AT+CGSN", 7);
@@ -500,7 +500,7 @@ static int nct_client_id_get(char *id)
 	__ASSERT_NO_MSG(bytes_read == NRF_IMEI_LEN);
 	imei_buf[NRF_IMEI_LEN] = 0;
 
-	snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s%s", CONFIG_NRF_CLOUD_CLIENT_ID_PREFIX, imei_buf);
+	snprintf(id, id_len, "%s%s", CONFIG_NRF_CLOUD_CLIENT_ID_PREFIX, imei_buf);
 #endif
 
 	ret = nrf_close(at_socket_fd);
@@ -509,7 +509,7 @@ static int nct_client_id_get(char *id)
 #error Missing NRF_CLOUD_CLIENT_ID
 #endif /* defined(CONFIG_BSD_LIBRARY) */
 #else
-	memcpy(id, NRF_CLOUD_CLIENT_ID, NRF_CLOUD_CLIENT_ID_LEN + 1);
+	memcpy(id, NRF_CLOUD_CLIENT_ID, id_len);
 #endif /* !defined(NRF_CLOUD_CLIENT_ID) */
 
 	LOG_INF("client_id = %s", log_strdup(id));
@@ -521,7 +521,7 @@ static int nct_topics_populate(void)
 {
 	int ret;
 
-	ret = nct_client_id_get(client_id_buf);
+	ret = nct_client_id_get(client_id_buf, sizeof(client_id_buf));
 	if (ret != 0) {
 		return ret;
 	}

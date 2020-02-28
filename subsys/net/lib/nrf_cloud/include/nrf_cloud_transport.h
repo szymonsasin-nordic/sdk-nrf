@@ -7,6 +7,7 @@
 #ifndef NRF_CLOUD_TRANSPORT_H__
 #define NRF_CLOUD_TRANSPORT_H__
 
+#include <stddef.h>
 #include <net/nrf_cloud.h>
 
 #ifdef __cplusplus
@@ -127,6 +128,9 @@ int nct_keepalive_time_left(void);
 
 /**@brief Input from the cloud module. */
 int nct_input(const struct nct_evt *evt);
+
+/**@brief Retrieve the device id. */
+int nct_client_id_get(char *id, size_t id_len);
 
 /**@brief Signal to apply FOTA update. */
 void nct_apply_update(void);
