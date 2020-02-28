@@ -93,6 +93,17 @@ defined(CONFIG_NRF_CLOUD_PROVISION_CERTIFICATES)
  */
 #define CONN_CYCLE_AFTER_ASSOCIATION_REQ_MS K_MINUTES(5)
 
+static char epitath_msg[] = "\"LWT\"";
+struct cloud_cfg cloud_config = {
+	.cfg.mqtt.epitath_msg.qos = CLOUD_QOS_AT_LEAST_ONCE,
+	.cfg.mqtt.epitath_msg.buf = NULL,
+	.cfg.mqtt.epitath_msg.len = 0,
+	.cfg.mqtt.epitath_msg.endpoint.type = CLOUD_EP_TOPIC_WILL,
+	.cfg.mqtt.epitath_msg.endpoint.str = NULL,
+	.cfg.mqtt.epitath_msg.endpoint.len = 0,
+	.cfg.mqtt.retain = false
+};
+
 struct rsrp_data {
 	uint16_t value;
 	uint16_t offset;
@@ -552,8 +563,13 @@ static void cloud_connect_work_fn(struct k_work *work)
 
 	ui_led_set_pattern(UI_CLOUD_CONNECTING);
 
+	/* Initialize pointer to will */
+	cloud_config.cfg.mqtt.epitath_msg.buf = epitath_msg;
+	cloud_config.cfg.mqtt.epitath_msg.len = strlen(epitath_msg);
+
 	/* Attempt cloud connection */
-	ret = cloud_connect(cloud_backend);
+
+	ret = cloud_connect(cloud_backend, &cloud_config);
 	if (ret != CLOUD_CONNECT_RES_SUCCESS) {
 		k_delayed_work_cancel(&cloud_reboot_work);
 		/* Will not return from this function.
@@ -1714,9 +1730,64 @@ static void sensors_init(void)
 }
 
 #if defined(CONFIG_USE_UI_MODULE)
+
+#if defined(CONFIG_CLOUD_TEST_LWT)
+/**@brief Prevent device reboot so cloud state can be checked manually. */
+static void halt_device(void)
+{
+	LOG_PANIC();
+	LOG_ERR("HALTING");
+
+	ui_led_set_pattern(UI_LED_ERROR_UNKNOWN);
+	while (true) {
+		k_cpu_idle();
+	}
+}
+
+/**@brief Close BSD socket without sending MQTT disconnect packet;
+ * expect the will to be sent.
+ * Monitor $aws/things/nrf-<id>/shadow/update.
+ */
+static void close_socket_test(void)
+{
+	/* just drop the connection */
+	LOG_INF("Abort requested.  Closing socket immediately...");
+	close(cloud_backend->config->socket);
+	LOG_INF("Socket closed.");
+
+	halt_device();
+}
+
+/**@brief Update shadow connected state then do MQTT disconnect;
+ * do not expect the will to be sent.
+ * Monitor $aws/things/nrf-<id>/shadow/update.
+ */
+static void cloud_disconnect_test(void)
+{
+	LOG_INF("Disconnect requested.  Disconnecting gracefully...");
+
+	/* do an MQTT disconnect */
+	atomic_set(&cloud_association, CLOUD_ASSOCIATION_STATE_INIT);
+	cloud_disconnect(cloud_backend);
+	LOG_INF("Cloud disconnected");
+
+	halt_device();
+}
+#endif
+
 /**@brief User interface event handler. */
 static void ui_evt_handler(struct ui_evt evt)
 {
+#if defined(CONFIG_CLOUD_TEST_LWT)
+	if ((evt.button == UI_BUTTON_1) && (evt.type == UI_EVT_BUTTON_ACTIVE)) {
+		close_socket_test();
+	}
+
+	if ((evt.button == UI_BUTTON_2) && (evt.type == UI_EVT_BUTTON_ACTIVE)) {
+		cloud_disconnect_test();
+	}
+#endif
+
 	if (IS_ENABLED(CONFIG_CLOUD_BUTTON) &&
 	   (evt.button == CONFIG_CLOUD_BUTTON_INPUT)) {
 		button_send(evt.type == UI_EVT_BUTTON_ACTIVE ? 1 : 0);

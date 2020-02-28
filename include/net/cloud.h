@@ -72,6 +72,7 @@ enum cloud_endpoint_type {
 	CLOUD_EP_TOPIC_CONFIG,
 	CLOUD_EP_TOPIC_PAIR,
 	CLOUD_EP_TOPIC_BATCH,
+	CLOUD_EP_TOPIC_WILL,
 	CLOUD_EP_URI,
 	CLOUD_EP_COMMON_COUNT,
 	CLOUD_EP_PRIV_START = CLOUD_EP_COMMON_COUNT,
@@ -134,6 +135,17 @@ struct cloud_event {
 	} data;
 };
 
+/**@brief Cloud configuration. */
+struct cloud_cfg {
+	union {
+		struct {
+			struct cloud_msg epitath_msg;
+			bool retain;
+		} mqtt;
+		/* add other transport-specific cfg here */
+	} cfg;
+};
+
 /**
  * @brief Cloud event handler function type.
  *
@@ -155,7 +167,8 @@ struct cloud_api {
 	int (*init)(const struct cloud_backend *const backend,
 		    cloud_evt_handler_t handler);
 	int (*uninit)(const struct cloud_backend *const backend);
-	int (*connect)(const struct cloud_backend *const backend);
+	int (*connect)(const struct cloud_backend *const backend,
+		       const struct cloud_cfg *const cfg);
 	int (*disconnect)(const struct cloud_backend *const backend);
 	int (*send)(const struct cloud_backend *const backend,
 		    const struct cloud_msg *const msg);
@@ -171,6 +184,8 @@ struct cloud_api {
 				size_t list_count);
 	int (*user_data_set)(const struct cloud_backend *const backend,
 			     void *user_data);
+	int (*get_id)(const struct cloud_backend *const backend,
+		      char *id, size_t id_len);
 };
 
 /**@brief Structure for cloud backend configuration. */
@@ -235,16 +250,19 @@ static inline int cloud_uninit(const struct cloud_backend *const backend)
  *
  * @param backend Pointer to a cloud backend structure.
  *
+ * @param cfg Pointer to optional backend configuration.
+ *
  * @return connect result defined by enum cloud_connect_result.
  */
-static inline int cloud_connect(const struct cloud_backend *const backend)
+static inline int cloud_connect(const struct cloud_backend *const backend,
+				const struct cloud_cfg *const cfg)
 {
 	if (backend == NULL || backend->api == NULL ||
 	    backend->api->connect == NULL) {
 		return CLOUD_CONNECT_RES_ERR_INVALID_PARAM;
 	}
 
-	return backend->api->connect(backend);
+	return backend->api->connect(backend, cfg);
 }
 
 /**@brief Disconnect from a cloud backend.
@@ -397,6 +415,23 @@ static inline int cloud_user_data_set(struct cloud_backend *const backend,
 	}
 
 	return backend->api->user_data_set(backend, user_data);
+}
+
+/**@brief Get the id string for the current device.
+ *
+ * @param backend   Pointer to cloud backend structure.
+ * @param user_data Pointer to user defined data that will be passed on as
+ * 		       argument to cloud event handler.
+ */
+static inline int cloud_get_id(const struct cloud_backend *const backend,
+		      char *id, size_t id_len)
+{
+	if (backend == NULL || backend->api == NULL ||
+	    backend->api->get_id == NULL) {
+		return -ENOTSUP;
+	}
+
+	return backend->api->get_id(backend, id, id_len);
 }
 
 /**

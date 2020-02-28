@@ -17,7 +17,7 @@
 LOG_MODULE_REGISTER(aws_iot, CONFIG_AWS_IOT_LOG_LEVEL);
 
 BUILD_ASSERT(sizeof(CONFIG_AWS_IOT_BROKER_HOST_NAME) > 1,
-	    "AWS IoT hostname not set");
+		 "AWS IoT hostname not set");
 
 #if defined(CONFIG_AWS_IOT_IPV6)
 #define AWS_AF_FAMILY AF_INET6
@@ -516,8 +516,8 @@ static int topic_subscribe(void)
 	}
 
 	if (err < 0) {
-		return err;
-	}
+	return err;
+}
 	return app_topic_data.list_count + ARRAY_SIZE(aws_iot_rx_list);
 }
 
@@ -583,13 +583,13 @@ static void mqtt_evt_handler(struct mqtt_client *const c,
 			if (res < 0) {
 				aws_iot_evt.type = AWS_IOT_EVT_ERROR;
 				aws_iot_evt.data.err = err;
-				aws_iot_notify_event(&aws_iot_evt);
+		aws_iot_notify_event(&aws_iot_evt);
 				break;
 			}
 			if (res == 0) {
 				/* There were not topics to subscribe to. */
-				aws_iot_evt.type = AWS_IOT_EVT_READY;
-				aws_iot_notify_event(&aws_iot_evt);
+		aws_iot_evt.type = AWS_IOT_EVT_READY;
+		aws_iot_notify_event(&aws_iot_evt);
 			} /* else: wait for SUBACK */
 		} else {
 			/** pre-existing session:
@@ -745,7 +745,9 @@ static int broker_init(void)
 
 			inet_ntop(AF_INET, &broker4->sin_addr.s_addr, ipv4_addr,
 				  sizeof(ipv4_addr));
-			LOG_DBG("IPv4 Address found %s", log_strdup(ipv4_addr));
+			LOG_DBG("IPv4 Address found %s for host %s",
+				log_strdup(ipv4_addr),
+				log_strdup(CONFIG_AWS_IOT_BROKER_HOST_NAME));
 			break;
 		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6)) &&
 			   (AWS_AF_FAMILY == AF_INET6)) {
@@ -826,8 +828,8 @@ static int client_broker_init(struct mqtt_client *const client)
 	err = certificates_provision();
 	if (err) {
 		LOG_ERR("Could not provision certificates, error: %d", err);
-		return err;
-	}
+	return err;
+}
 #endif /* !defined(CONFIG_BSD_LIBRARY) */
 
 	return err;
@@ -932,29 +934,75 @@ int aws_iot_disconnect(void)
 	return mqtt_disconnect(&client);
 }
 
+static int aws_iot_calc_topic_len(const struct cloud_lwt *const will)
+{
+	int topic_len;
+
+	if (will && will->topic) {
+		topic_len = strlen(will->topic) + strlen(client_id_buf);
+	} else {
+		topic_len = 0;
+	}
+	return topic_len;
+}
+
 int aws_iot_connect(struct aws_iot_config *const config)
 {
 	int err;
+	struct mqtt_topic will_topic;
+	struct mqtt_utf8 will_message;
 
 	if (IS_ENABLED(CONFIG_AWS_IOT_CONNECTION_POLL_THREAD)) {
 		err = connection_poll_start();
 	} else {
 		atomic_set(&disconnect_requested, 0);
 
-		err = client_broker_init(&client);
-		if (err) {
-			LOG_ERR("client_broker_init, error: %d", err);
-			return err;
+	err = client_broker_init(&client);
+	if (err) {
+		LOG_ERR("client_broker_init, error: %d", err);
+		return err;
+	}
+
+	if (config && config->cfg) {
+		struct cloud_msg *msg = &config->cfg->cfg.mqtt.epitath_msg;
+
+		if (msg->endpoint.type == CLOUD_EP_TOPIC_STATE) {
+			will_topic.topic.utf8 = update_topic;
+			will_topic.topic.size = strlen(update_topic);
+		} else if (msg->endpoint.type == CLOUD_EP_URI) {
+			will_topic.topic.utf8 = msg->endpoint.str;
+			will_topic.topic.size = msg->endpoint.len;
+		} else {
+			LOG_ERR("Unsupported epitath endpoint %d",
+				(int)msg->endpoint.type);
+			return -EINVAL;
 		}
 
-		err = mqtt_connect(&client);
-		if (err) {
-			LOG_ERR("mqtt_connect, error: %d", err);
-		}
+		will_topic.qos = msg->qos;
+		client.will_topic = &will_topic;
+		LOG_DBG("mqtt will topic set to %s, QoS=%u",
+			log_strdup(topic_buf), will->qos);
+
+		will_message.utf8 = (u8_t *)msg->buf;
+		will_message.size = msg->len;
+		client.will_message = &will_message;
+		LOG_DBG("mqtt will message set to %s",
+			log_strdup(will->message));
+
+		client.will_retain = cfg->cfg.mqtt.retain;
+	}
+
+	err = mqtt_connect(&client);
+	if (err) {
+		LOG_ERR("mqtt_connect, error: %d", err);
+	}
+	/* will sent with connect message; no need to keep around */
+	client.will_topic = NULL;
+	client.will_message = NULL;
 
 		err = connect_error_translate(err);
 
-		config->socket = client.transport.tls.sock;
+	config->socket = client.transport.tls.sock;
 	}
 
 	return err;
@@ -1141,7 +1189,7 @@ K_THREAD_DEFINE(connection_poll_thread, POLL_THREAD_STACK_SIZE,
 
 #if defined(CONFIG_CLOUD_API)
 static int api_init(const struct cloud_backend *const backend,
-		    cloud_evt_handler_t handler)
+		  cloud_evt_handler_t handler)
 {
 	backend->config->handler = handler;
 	aws_iot_backend = (struct cloud_backend *)backend;
@@ -1155,8 +1203,8 @@ static int api_init(const struct cloud_backend *const backend,
 }
 
 static int api_ep_subscriptions_add(const struct cloud_backend *const backend,
-				    const struct cloud_endpoint *const list,
-				    size_t list_count)
+				  const struct cloud_endpoint *const list,
+				  size_t list_count)
 {
 	struct aws_iot_topic_data topic_list[list_count];
 
@@ -1168,14 +1216,16 @@ static int api_ep_subscriptions_add(const struct cloud_backend *const backend,
 	return aws_iot_subscription_topics_add(topic_list, list_count);
 }
 
-static int api_connect(const struct cloud_backend *const backend)
+static int c_connect(const struct cloud_backend *const backend,
+		     const struct cloud_cfg *const cfg)
 {
 	struct aws_iot_config config = {
 		.socket = backend->config->socket
 	};
+	struct aws_iot_config config;
 
 	return aws_iot_connect(&config);
-}
+	}
 
 static int api_disconnect(const struct cloud_backend *const backend)
 {
@@ -1183,7 +1233,7 @@ static int api_disconnect(const struct cloud_backend *const backend)
 }
 
 static int api_send(const struct cloud_backend *const backend,
-		    const struct cloud_msg *const msg)
+		  const struct cloud_msg *const msg)
 {
 	struct aws_iot_data tx_data = {
 		.ptr = msg->buf,

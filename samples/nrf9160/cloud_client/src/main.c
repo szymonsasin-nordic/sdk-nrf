@@ -129,10 +129,17 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 		LOG_INF("CLOUD_EVT_DATA_SENT");
 		break;
 	case CLOUD_EVT_DATA_RECEIVED:
-		LOG_INF("CLOUD_EVT_DATA_RECEIVED");
-		LOG_INF("Data received from cloud: %s",
-			log_strdup(evt->data.msg.buf))
-	;
+		{
+			char buf[evt->data.msg.endpoint.len + 1];
+
+			memcpy(buf, evt->data.msg.endpoint.str,
+				evt->data.msg.endpoint.len);
+			buf[evt->data.msg.endpoint.len] = '\0';
+
+			LOG_INF("CLOUD_EVT_DATA_RECEIVED");
+			LOG_INF("Data received from cloud: %s on topic: %s",
+				log_strdup(evt->data.msg.buf), log_strdup(buf));
+		}
 		break;
 	case CLOUD_EVT_PAIR_REQUEST:
 		LOG_INF("CLOUD_EVT_PAIR_REQUEST");
@@ -254,6 +261,13 @@ void main(void)
 	__ASSERT(cloud_backend != NULL, "%s backend not found",
 		 CONFIG_CLOUD_BACKEND);
 
+	if (IS_ENABLED(CONFIG_AWS_IOT_CLIENT_ID_APP)) {
+		/* set your app-generated client id here */
+		cloud_backend->config->id = "my-client-id";
+		cloud_backend->config->id_len =
+			strlen(cloud_backend->config->id);
+	}
+
 	err = cloud_init(cloud_backend, cloud_event_handler);
 	if (err) {
 		LOG_ERR("Cloud backend could not be initialized, error: %d",
@@ -276,7 +290,7 @@ void main(void)
 	LOG_INF("Connected to LTE network");
 	LOG_INF("Connecting to cloud");
 
-	err = cloud_connect(cloud_backend);
+	err = cloud_connect(cloud_backend, &cloud_config);
 	if (err) {
 		LOG_ERR("Failed to connect to cloud, error: %d", err);
 	}
