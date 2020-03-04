@@ -1311,25 +1311,22 @@ void main(void)
 
 	ret = cloud_decode_init(cloud_cmd_handler);
 	if (ret) {
-		LOG_ERR("Cloud command decoder could not be initialized, error: %d", ret);
+		LOG_ERR("Cloud command decoder initialization error: %d", ret);
 		cloud_error_handler(ret);
 	}
 
 	work_init();
 	modem_configure();
+
+	char will_topic[50];
+	const char will_message[] = "{\"state\":{\"reported\":"
+				    "{\"connected\":\"false\"}}}";
+
+	snprintf(will_topic, sizeof(will_topic),
+		"$aws/things/nrf-%s/shadow/update", cloud_backend->config->id);
+
 connect:
-	/* PETE: finish this: */
-	struct mqtt_topic will_topic;
-
-	will_topic.qos = 1;
-	will_topic.topic = "$aws/things/<thingname>/shadow/update";
-
-	struct mqtt_utf8 will_message;
-
-	will_message.utf8 = "{"state":{"reported":{"connected":"false"}}}";
-	will_message.size = strlen(will_message.utf8);
-
-	ret = cloud_connect(cloud_backend, &will_topic, *will_message);
+	ret = cloud_connect(cloud_backend, will_topic, will_message);
 	if (ret != CLOUD_CONNECT_RES_SUCCESS) {
 		cloud_connect_error_handler(ret);
 	} else {

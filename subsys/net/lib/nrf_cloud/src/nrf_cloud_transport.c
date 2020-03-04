@@ -596,10 +596,11 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 #endif /* defined(CONFIG_AWS_FOTA) */
 
 /* Connect to MQTT broker. */
-int nct_mqtt_connect(struct mqtt_topic *will_topic,
-		     struct mqtt_utf8 *will_message);
+int nct_mqtt_connect(const char *topic, const char *message)
 {
 	int err;
+	struct mqtt_utf8 will_message;
+	struct mqtt_topic will_topic;
 
 	mqtt_client_init(&nct.client);
 
@@ -610,8 +611,22 @@ int nct_mqtt_connect(struct mqtt_topic *will_topic,
 	nct.client.protocol_version = MQTT_VERSION_3_1_1;
 	nct.client.password = NULL;
 	nct.client.user_name = NULL;
-	nct.client.will_topic = will_topic;
-	nct.client.will_message = will_message;
+
+	if (topic) {
+		will_topic.qos = 1;
+		will_topic.topic.utf8 = (u8_t *)topic;
+		will_topic.topic.size = topic ? strlen(topic) : 0;
+		nct.client.will_topic = &will_topic;
+		LOG_DBG("mqtt will topic set to %s", log_strdup(topic));
+	}
+
+	if (message) {
+		will_message.utf8 = (u8_t *)message;
+		will_message.size = message ? strlen(message) : 0;
+		nct.client.will_message = &will_message;
+		LOG_DBG("mqtt will message set to %s", log_strdup(message));
+	}
+
 #if defined(CONFIG_MQTT_LIB_TLS)
 	nct.client.transport.type = MQTT_TRANSPORT_SECURE;
 	nct.client.rx_buf = nct.rx_buf;
@@ -817,8 +832,8 @@ int nct_connect(struct mqtt_topic *will_topic,
 	return err;
 }
 #else
-int nct_connect(struct mqtt_topic *will_topic,
-		struct mqtt_utf8 *will_message)
+int nct_connect(const char *will_topic,
+		const char *will_message)
 {
 	int err;
 	struct addrinfo *result;

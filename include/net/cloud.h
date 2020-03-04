@@ -131,8 +131,8 @@ struct cloud_api {
 		    cloud_evt_handler_t handler);
 	int (*uninit)(const struct cloud_backend *const backend);
 	int (*connect)(const struct cloud_backend *const backend,
-		       struct mqtt_topic *will_topic,
-		       struct mqtt_utf8 *will_message);
+		       const char *will_topic,
+		       const char *will_message);
 	int (*disconnect)(const struct cloud_backend *const backend);
 	int (*send)(const struct cloud_backend *const backend,
 		    const struct cloud_msg *const msg);
@@ -219,8 +219,8 @@ static inline int cloud_uninit(const struct cloud_backend *const backend)
  * @return connect result defined by enum cloud_connect_result.
  */
 static inline int cloud_connect(const struct cloud_backend *const backend,
-	struct mqtt_topic *will_topic,
-	struct mqtt_utf8 *will_message)
+				const char *will_topic,
+				const char *will_message)
 {
 	if (backend == NULL || backend->api == NULL ||
 	    backend->api->connect == NULL) {

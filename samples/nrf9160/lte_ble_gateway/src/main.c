@@ -364,6 +364,8 @@ static void cloud_connect(struct k_work *work)
 
 	const struct nrf_cloud_connect_param param = {
 		.sensor = &sensor_list,
+		.will_topic = NULL,
+		.will_message = NULL
 	};
 
 	display_state = LEDS_CONNECTING;

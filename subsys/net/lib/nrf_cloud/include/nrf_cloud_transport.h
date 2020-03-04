@@ -69,7 +69,7 @@ int nct_init(void);
  *
  * @return result.
  */
-int nct_connect(struct mqtt_topic *will_topic, struct mqtt_utf8 *will_message);
+int nct_connect(const char *will_topic, const char *will_message);
 
 /**@brief Establishes the logical control channel on the transport connection.
  */
