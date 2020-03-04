@@ -1320,7 +1320,14 @@ void main(void)
 connect:
 	/* PETE: finish this: */
 	struct mqtt_topic will_topic;
+
+	will_topic.qos = 1;
+	will_topic.topic = "$aws/things/<thingname>/shadow/update";
+
 	struct mqtt_utf8 will_message;
+
+	will_message.utf8 = "{"state":{"reported":{"connected":"false"}}}";
+	will_message.size = strlen(will_message.utf8);
 
 	ret = cloud_connect(cloud_backend, &will_topic, *will_message);
 	if (ret != CLOUD_CONNECT_RES_SUCCESS) {

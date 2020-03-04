@@ -610,6 +610,8 @@ int nct_mqtt_connect(struct mqtt_topic *will_topic,
 	nct.client.protocol_version = MQTT_VERSION_3_1_1;
 	nct.client.password = NULL;
 	nct.client.user_name = NULL;
+	nct.client.will_topic = will_topic;
+	nct.client.will_message = will_message;
 #if defined(CONFIG_MQTT_LIB_TLS)
 	nct.client.transport.type = MQTT_TRANSPORT_SECURE;
 	nct.client.rx_buf = nct.rx_buf;
