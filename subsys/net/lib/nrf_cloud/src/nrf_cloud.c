@@ -88,8 +88,7 @@ int nrf_cloud_connect(const struct nrf_cloud_connect_param *param)
 	if (NOT_VALID_STATE(STATE_INITIALIZED)) {
 		return -EACCES;
 	}
-	return nct_connect(param ? param->will_topic : NULL,
-			   param ? param->will_message : NULL);
+	return nct_connect(param ? param->will : NULL);
 }
 
 int nrf_cloud_disconnect(void)
@@ -320,15 +319,13 @@ static int uninit(const struct cloud_backend *const backend)
 }
 
 static int connect(const struct cloud_backend *const backend,
-		   const char *will_topic,
-		   const char *will_message)
+		   const struct cloud_lwt *const will)
 {
 	int err;
 	struct nrf_cloud_connect_param param;
 
 	param.sensor = NULL;
-	param.will_topic = will_topic;
-	param.will_message = will_message;
+	param.will = will;
 
 	err = nrf_cloud_connect(&param);
 

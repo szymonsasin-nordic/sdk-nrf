@@ -1318,15 +1318,22 @@ void main(void)
 	work_init();
 	modem_configure();
 
-	char will_topic[50];
+	/* the %s will be replaced by the client-id in nct_mqtt_connect() */
+	const char will_topic[] = "$aws/things/%s/shadow/update";
+	/* const char will_topic[] = "%sm/d/%s/d2c"; */
+	/* const char will_topic[] = "nrf/%s/state"; */
 	const char will_message[] = "{\"state\":{\"reported\":"
 				    "{\"connected\":\"false\"}}}";
-
-	snprintf(will_topic, sizeof(will_topic),
-		"$aws/things/nrf-%s/shadow/update", cloud_backend->config->id);
+	const struct cloud_lwt will = {
+		.qos = 1,
+		.prepend_prefix = false,
+		.retain = false,
+		.topic = will_topic,
+		.message = will_message
+	};
 
 connect:
-	ret = cloud_connect(cloud_backend, will_topic, will_message);
+	ret = cloud_connect(cloud_backend, &will);
 	if (ret != CLOUD_CONNECT_RES_SUCCESS) {
 		cloud_connect_error_handler(ret);
 	} else {

@@ -384,6 +384,9 @@ int nrf_cloud_encode_state(u32_t reported_state, struct nrf_cloud_data *output)
 		ret += json_add_null(pairing_obj, "config");
 		ret += json_add_null(reported_obj, "pairingStatus");
 
+		/* Report we are connected. */
+		ret += json_add_str(reported_obj, "connected", "true");
+
 		/* Report pairing topics. */
 		cJSON *topics_obj = cJSON_CreateObject();
 

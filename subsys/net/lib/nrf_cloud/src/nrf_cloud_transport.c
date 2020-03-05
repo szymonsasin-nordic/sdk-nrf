@@ -595,12 +595,41 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 }
 #endif /* defined(CONFIG_AWS_FOTA) */
 
+static int get_prefix_info(struct nrf_cloud_data *m_endp)
+{
+	struct nrf_cloud_data rx_endp;
+	struct nrf_cloud_data tx_endp;
+
+	/* Get the endpoint information. */
+	nct_dc_endpoint_get(&tx_endp, &rx_endp, m_endp);
+	return m_endp->len;
+}
+
+static int calc_will_topic_len(const struct cloud_lwt *const will,
+			       int prefix_len)
+{
+	int topic_len;
+	if (will && will->topic) {
+		topic_len = strlen(will->topic) + strlen(client_id_buf);
+		if (will->prepend_prefix) {
+			topic_len += prefix_len;
+		}
+	} else {
+		topic_len = 0;
+	}
+	return topic_len;
+}
+
 /* Connect to MQTT broker. */
-int nct_mqtt_connect(const char *topic, const char *message)
+int nct_mqtt_connect(const struct cloud_lwt *const will)
 {
 	int err;
 	struct mqtt_utf8 will_message;
 	struct mqtt_topic will_topic;
+	struct nrf_cloud_data topic_prefix;
+	int prefix_len = get_prefix_info(&topic_prefix);
+	int topic_len = calc_will_topic_len(will, prefix_len);
+	char topic_buf[topic_len];
 
 	mqtt_client_init(&nct.client);
 
@@ -612,19 +641,42 @@ int nct_mqtt_connect(const char *topic, const char *message)
 	nct.client.password = NULL;
 	nct.client.user_name = NULL;
 
-	if (topic) {
-		will_topic.qos = 1;
-		will_topic.topic.utf8 = (u8_t *)topic;
-		will_topic.topic.size = topic ? strlen(topic) : 0;
-		nct.client.will_topic = &will_topic;
-		LOG_DBG("mqtt will topic set to %s", log_strdup(topic));
-	}
+	if (will) {
+		LOG_DBG("prefix_len=%d, topic_len=%d", prefix_len, topic_len);
+		if (will->topic) {
+			will_topic.qos = will->qos;
+			if (will->prepend_prefix) {
+				char prefix[topic_prefix.len + 1];
 
-	if (message) {
-		will_message.utf8 = (u8_t *)message;
-		will_message.size = message ? strlen(message) : 0;
-		nct.client.will_message = &will_message;
-		LOG_DBG("mqtt will message set to %s", log_strdup(message));
+				memcpy(prefix, topic_prefix.ptr, 
+					topic_prefix.len);
+				prefix[topic_prefix.len] = '\0';
+
+				snprintf(topic_buf, topic_len, will->topic, 
+					prefix,
+					client_id_buf);
+				LOG_DBG("prefix.len=%d, prefix=%s",
+					topic_prefix.len, prefix);
+			} else {
+				snprintf(topic_buf, topic_len, will->topic, 
+					client_id_buf);
+			}
+			will_topic.topic.utf8 = (u8_t *)topic_buf;
+			will_topic.topic.size = strlen(topic_buf);
+			nct.client.will_topic = &will_topic;
+			LOG_DBG("mqtt will topic set to %s, QoS=%u", 
+				log_strdup(topic_buf), will->qos);
+		}
+
+		if (will->message) {
+			will_message.utf8 = (u8_t *)will->message;
+			will_message.size = strlen(will->message);
+			nct.client.will_message = &will_message;
+			LOG_DBG("mqtt will message set to %s", 
+				log_strdup(will->message));
+		}
+
+		nct.client.will_retain = will->retain;
 	}
 
 #if defined(CONFIG_MQTT_LIB_TLS)
@@ -814,8 +866,7 @@ int nct_init(void)
 }
 
 #if defined(CONFIG_NRF_CLOUD_STATIC_IPV4)
-int nct_connect(struct mqtt_topic *will_topic,
-		struct mqtt_utf8 *will_message)
+int nct_connect(const struct cloud_lwt *const will)
 {
 	int err;
 
@@ -827,13 +878,12 @@ int nct_connect(struct mqtt_topic *will_topic,
 	broker->sin_port = htons(NRF_CLOUD_PORT);
 
 	LOG_DBG("IPv4 Address %s", CONFIG_NRF_CLOUD_STATIC_IPV4_ADDR);
-	err = nct_mqtt_connect(will_topic, will_message);
+	err = nct_mqtt_connect(will);
 
 	return err;
 }
 #else
-int nct_connect(const char *will_topic,
-		const char *will_message)
+int nct_connect(const struct cloud_lwt *const will)
 {
 	int err;
 	struct addrinfo *result;
@@ -867,7 +917,7 @@ int nct_connect(const char *will_topic,
 			broker->sin_port = htons(NRF_CLOUD_PORT);
 
 			LOG_DBG("IPv4 Address 0x%08x", broker->sin_addr.s_addr);
-			err = nct_mqtt_connect(will_topic, will_message);
+			err = nct_mqtt_connect(will);
 			break;
 		} else if ((addr->ai_addrlen == sizeof(struct sockaddr_in6)) &&
 			   (NRF_CLOUD_AF_FAMILY == AF_INET6)) {
@@ -883,7 +933,7 @@ int nct_connect(const char *will_topic,
 			broker->sin6_port = htons(NRF_CLOUD_PORT);
 
 			LOG_DBG("IPv6 Address");
-			err = nct_mqtt_connect(will_topic, will_message);
+			err = nct_mqtt_connect(will);
 			break;
 		} else {
 			LOG_DBG("ai_addrlen = %u should be %u or %u",

@@ -63,13 +63,11 @@ int nct_init(void);
 /**
  * @brief Establishes the transport connection.
  *
- * @param will_topic optional topic.
- *
- * @param will_message optional message.
+ * @param will optional last will and testament.
  *
  * @return result.
  */
-int nct_connect(const char *will_topic, const char *will_message);
+int nct_connect(const struct cloud_lwt *const will);
 
 /**@brief Establishes the logical control channel on the transport connection.
  */

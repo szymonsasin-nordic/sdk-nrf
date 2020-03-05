@@ -110,6 +110,27 @@ struct cloud_event {
 };
 
 /**
+ * @brief Cloud last will and testament type. See:
+ * http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html
+ * sections  3.1.2.5-3.1.2.7, 3.1.3.2-3.1.3.3.
+ */
+struct cloud_lwt {
+	u8_t qos;		/**< MQTT QoS value. */
+	/* Broker to retain will for new clients.  Not currently
+	 * supported by AWS IoT.
+	 */
+	bool retain;
+	/* Set true to prepend nrf_cloud_topic_prefix for custom topics.
+	 * If set, @ref topic must include two %s format specifiers.  Otherwise,
+	 * a single %s must be specified.  The last or only %s will be
+	 * replaced with the client id (thing name).
+	 */
+	bool prepend_prefix;
+	const char *topic;	/**< If specified, @ref message must also. */
+	const char *message;	/**< Message sent to topic by broker. */
+};
+
+/**
  * @brief Cloud event handler function type.
  *
  * @param backend   Pointer to cloud backend.
@@ -131,8 +152,7 @@ struct cloud_api {
 		    cloud_evt_handler_t handler);
 	int (*uninit)(const struct cloud_backend *const backend);
 	int (*connect)(const struct cloud_backend *const backend,
-		       const char *will_topic,
-		       const char *will_message);
+		       const struct cloud_lwt *const will);
 	int (*disconnect)(const struct cloud_backend *const backend);
 	int (*send)(const struct cloud_backend *const backend,
 		    const struct cloud_msg *const msg);
@@ -212,22 +232,20 @@ static inline int cloud_uninit(const struct cloud_backend *const backend)
  *
  * @param backend Pointer to a cloud backend structure.
  *
- * @param will_topic Pointer to optional will topic.
- *
- * @param will_message Pointer to optional will message.
+ * @param will Pointer to optional last will and testament.  Broker
+ * will send the specified message to the specified topic if the
+ * connection breaks.
  *
  * @return connect result defined by enum cloud_connect_result.
  */
 static inline int cloud_connect(const struct cloud_backend *const backend,
-				const char *will_topic,
-				const char *will_message)
+				const struct cloud_lwt *const will)
 {
 	if (backend == NULL || backend->api == NULL ||
-	    backend->api->connect == NULL) {
+	    backend->api->connect == NULL)
 		return CLOUD_CONNECT_RES_ERR_INVALID_PARAM;
-	}
 
-	return backend->api->connect(backend, will_topic, will_message);
+	return backend->api->connect(backend, will);
 }
 
 /**@brief Disconnect from a cloud backend.
