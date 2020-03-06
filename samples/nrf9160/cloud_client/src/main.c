@@ -155,7 +155,7 @@ void main(void)
 	}
 #endif
 
-	err = cloud_connect(cloud_backend, NULL, NULL);
+	err = cloud_connect(cloud_backend, NULL);
 	if (err) {
 		printk("cloud_connect, error: %d\n", err);
 	}
