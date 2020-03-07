@@ -156,6 +156,9 @@ enum error_type {
 	ERROR_SYSTEM_FAULT
 };
 
+static volatile bool disconnect_requested = false;
+static volatile bool abort_requested = false;
+
 /* Forward declaration of functions */
 static void motion_handler(motion_data_t  motion_data);
 static void env_data_send(void);
@@ -194,6 +197,7 @@ void error_handler(enum error_type err_type, int err_code)
 			LOG_ERR("Reboot");
 			sys_reboot(0);
 		}
+		LOG_ERR("ERROR_CLOUD occurred");
 		shutdown_modem();
 	}
 
@@ -245,6 +249,7 @@ void k_sys_fatal_error_handler(unsigned int reason,
 
 void cloud_error_handler(int err)
 {
+	LOG_ERR("we got an error %d", err);
 	error_handler(ERROR_CLOUD, err);
 }
 
@@ -320,6 +325,7 @@ void cloud_connect_error_handler(enum cloud_connect_result err)
 /**@brief Recoverable BSD library error. */
 void bsd_recoverable_error_handler(uint32_t err)
 {
+	LOG_ERR("BSD recoverable error");
 	error_handler(ERROR_BSD_RECOVERABLE, (int)err);
 }
 
@@ -943,6 +949,7 @@ static void sensor_data_send(struct cloud_channel_data *data)
 /**@brief Reboot the device if CONNACK has not arrived. */
 static void cloud_reboot_handler(struct k_work *work)
 {
+	LOG_ERR("we timed out");
 	error_handler(ERROR_CLOUD, -ETIMEDOUT);
 }
 
@@ -1206,6 +1213,16 @@ static void sensors_init(void)
 /**@brief User interface event handler. */
 static void ui_evt_handler(struct ui_evt evt)
 {
+	if (evt.button == 1) {
+		abort_requested = true;
+		LOG_INF("ABORT!");
+	}
+
+	if (evt.button == 2) {
+		disconnect_requested = true;
+		LOG_INF("DISCONNECT!");
+	}
+
 	if (IS_ENABLED(CONFIG_CLOUD_BUTTON) &&
 	   (evt.button == CONFIG_CLOUD_BUTTON_INPUT)) {
 		button_send(evt.type == UI_EVT_BUTTON_ACTIVE ? 1 : 0);
@@ -1323,7 +1340,7 @@ void main(void)
 	/* const char will_topic[] = "%sm/d/%s/d2c"; */
 	/* const char will_topic[] = "nrf/%s/state"; */
 	const char will_message[] = "{\"state\":{\"reported\":"
-				    "{\"connected\":\"false\"}}}";
+				    "{\"connected\":\"false\",\"dead\":\"true\"}}}";
 	const struct cloud_lwt will = {
 		.qos = 1,
 		.prepend_prefix = false,
@@ -1331,6 +1348,8 @@ void main(void)
 		.topic = will_topic,
 		.message = will_message
 	};
+	const char disc_message[] = "{\"state\":{\"reported\":"
+				    "{\"connected\":\"false\",\"dead\":\"false\"}}}";
 
 connect:
 	ret = cloud_connect(cloud_backend, &will);
@@ -1351,6 +1370,9 @@ connect:
 	};
 
 	while (true) {
+		if (abort_requested || disconnect_requested) {
+			break;
+		}
 		ret = poll(fds, ARRAY_SIZE(fds),
 			   cloud_keepalive_time_left(cloud_backend));
 		if (ret < 0) {
@@ -1376,15 +1398,29 @@ connect:
 			}
 			LOG_ERR("Socket error: POLLNVAL");
 			LOG_ERR("The cloud socket was unexpectedly closed.");
-			error_handler(ERROR_CLOUD, -EIO);
-			return;
+			//error_handler(ERROR_CLOUD, -EIO);
+			//return;
+			atomic_set(&send_data_enable, 0);
+			cloud_disconnect(cloud_backend);
+			LOG_INF("Cloud disconnected");
+			k_delayed_work_cancel(&cloud_reboot_work);
+			LOG_INF("Attempting reconnect...");
+			modem_configure();
+			goto connect;
 		}
 
 		if ((fds[0].revents & POLLHUP) == POLLHUP) {
 			LOG_ERR("Socket error: POLLHUP");
 			LOG_ERR("Connection was closed by the cloud.");
-			error_handler(ERROR_CLOUD, -EIO);
-			return;
+			//error_handler(ERROR_CLOUD, -EIO);
+			//return;
+			atomic_set(&send_data_enable, 0);
+			cloud_disconnect(cloud_backend);
+			LOG_INF("Cloud disconnected");
+			k_delayed_work_cancel(&cloud_reboot_work);
+			LOG_INF("Attempting reconnect...");
+			modem_configure();
+			goto connect;
 		}
 
 		if ((fds[0].revents & POLLERR) == POLLERR) {
@@ -1395,6 +1431,34 @@ connect:
 		}
 	}
 
-	cloud_disconnect(cloud_backend);
+	if (abort_requested && !disconnect_requested) {
+		/* just drop the connection */
+		LOG_INF("Closing socket immediately");
+		close(cloud_backend->config->socket);
+		for (;;) {
+			// DIE
+		}
+	} else if (disconnect_requested) {
+		LOG_INF("Disconnecting gracefully");
+		if (abort_requested) {
+			/* update shadow to indicate we are disconnected */
+			struct cloud_msg msg = {
+				.qos = CLOUD_QOS_AT_MOST_ONCE,
+				.endpoint.type = CLOUD_EP_TOPIC_STATE,
+				.buf = disc_message,
+				.len = strlen(disc_message),
+			};
+			ret = cloud_send(cloud_backend, &msg);
+			LOG_INF("Shadow connected set false");
+		}
+		/* do an MQTT disconnect */
+		atomic_set(&send_data_enable, 0);
+		cloud_disconnect(cloud_backend);
+		LOG_INF("Cloud disconnected");
+		for (;;) {
+			// HALT
+		}
+	}
+	LOG_INF("Done.");
 	goto connect;
 }
