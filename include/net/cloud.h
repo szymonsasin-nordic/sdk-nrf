@@ -120,12 +120,6 @@ struct cloud_lwt {
 	 * supported by AWS IoT.
 	 */
 	bool retain;
-	/* Set true to prepend nrf_cloud_topic_prefix for custom topics.
-	 * If set, @ref topic must include two %s format specifiers.  Otherwise,
-	 * a single %s must be specified.  The last or only %s will be
-	 * replaced with the client id (thing name).
-	 */
-	bool prepend_prefix;
 	const char *topic;	/**< If specified, @ref message must also. */
 	const char *message;	/**< Message sent to topic by broker. */
 };

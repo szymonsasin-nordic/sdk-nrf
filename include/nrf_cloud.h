@@ -98,7 +98,7 @@ struct nrf_cloud_connect_param {
 	/** Supported sensor types. May be NULL. */
 	const struct nrf_cloud_sensor_list *sensor;
 	/** MQTT LWT.  May be NULL. */
-	const struct cloud_lwt * will;
+	const struct cloud_lwt *will;
 };
 
 /**@brief Parameters of attached sensors. */

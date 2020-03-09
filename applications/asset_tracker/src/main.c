@@ -80,6 +80,22 @@ defined(CONFIG_NRF_CLOUD_PROVISION_CERTIFICATES)
  */
 #define CONN_CYCLE_AFTER_ASSOCIATION_REQ_MS	K_MINUTES(5)
 
+/* undefine to enable buttons 1 and 2 to test MQTT last will and testament */
+//#define TEST_LWT
+/* the %s will be replaced by the client-id in nct_mqtt_connect() */
+#define WILL_TOPIC "$aws/things/%s/shadow/update"
+/* #define WILL_TOPIC "nrf/%s/state"; */
+#define WILL_MESSAGE \
+	"{\"state\":{\"reported\":{\"connected\":\"false\",\"dead\":\"true\"}}}"
+#define DISC_MESSAGE \
+	"{\"state\":{\"reported\":{\"connected\":\"false\",\"dead\":\"false\"}}}"
+const struct cloud_lwt will = {
+	.qos = 1,
+	.retain = false,
+	.topic = WILL_TOPIC,
+	.message = WILL_MESSAGE
+};
+
 struct rsrp_data {
 	u16_t value;
 	u16_t offset;
@@ -155,9 +171,6 @@ enum error_type {
 	ERROR_LTE_LC,
 	ERROR_SYSTEM_FAULT
 };
-
-static volatile bool disconnect_requested = false;
-static volatile bool abort_requested = false;
 
 /* Forward declaration of functions */
 static void motion_handler(motion_data_t  motion_data);
@@ -1210,18 +1223,74 @@ static void sensors_init(void)
 }
 
 #if defined(CONFIG_USE_UI_MODULE)
+
+#if defined(TEST_LWT)
+/**@brief Prevent device reboot so cloud state can be checked manually. */
+static void halt_device(void)
+{
+	LOG_ERR("HALTING");
+	ui_led_set_pattern(UI_LED_ERROR_UNKNOWN);
+	while (true) {
+		k_cpu_idle();
+	}
+}
+
+/**@brief Close BSD socket without sending MQTT disconnect packet;
+ * expect the will to be sent.
+ * Monitor $aws/things/nrf-<id>/shadow/update.
+ */
+static void close_socket_test(void)
+{
+	/* just drop the connection */
+	LOG_INF("Abort requested.  Closing socket immediately...");
+	close(cloud_backend->config->socket);
+	LOG_INF("Socket closed.");
+
+	halt_device();
+}
+
+/**@brief Update shadow connected state then do MQTT disconnect;
+ * do not expect the will to be sent.
+ * Monitor $aws/things/nrf-<id>/shadow/update.
+ */
+static void cloud_disconnect_test(void)
+{
+	int ret;
+
+	LOG_INF("Disconnect requested.  Disconnecting gracefully...");
+	/* update shadow to indicate we are disconnected */
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.endpoint.type = CLOUD_EP_TOPIC_STATE,
+		.buf = DISC_MESSAGE,
+		.len = strlen(DISC_MESSAGE),
+	};
+	ret = cloud_send(cloud_backend, &msg);
+	if (ret < 0) {
+		LOG_ERR("Error sending disconnect message: %d", ret);
+	}
+	LOG_INF("Shadow connected set false...");
+	/* do an MQTT disconnect */
+	atomic_set(&send_data_enable, 0);
+	cloud_disconnect(cloud_backend);
+	LOG_INF("Cloud disconnected");
+
+	halt_device();
+}
+#endif
+
 /**@brief User interface event handler. */
 static void ui_evt_handler(struct ui_evt evt)
 {
-	if (evt.button == 1) {
-		abort_requested = true;
-		LOG_INF("ABORT!");
+#if defined(TEST_LWT)
+	if ((evt.button == 1) && (evt.type == UI_EVT_BUTTON_ACTIVE)) {
+		close_socket_test();
 	}
 
-	if (evt.button == 2) {
-		disconnect_requested = true;
-		LOG_INF("DISCONNECT!");
+	if ((evt.button == 2) && (evt.type == UI_EVT_BUTTON_ACTIVE)) {
+		cloud_disconnect_test();
 	}
+#endif
 
 	if (IS_ENABLED(CONFIG_CLOUD_BUTTON) &&
 	   (evt.button == CONFIG_CLOUD_BUTTON_INPUT)) {
@@ -1335,22 +1404,6 @@ void main(void)
 	work_init();
 	modem_configure();
 
-	/* the %s will be replaced by the client-id in nct_mqtt_connect() */
-	const char will_topic[] = "$aws/things/%s/shadow/update";
-	/* const char will_topic[] = "%sm/d/%s/d2c"; */
-	/* const char will_topic[] = "nrf/%s/state"; */
-	const char will_message[] = "{\"state\":{\"reported\":"
-				    "{\"connected\":\"false\",\"dead\":\"true\"}}}";
-	const struct cloud_lwt will = {
-		.qos = 1,
-		.prepend_prefix = false,
-		.retain = false,
-		.topic = will_topic,
-		.message = will_message
-	};
-	const char disc_message[] = "{\"state\":{\"reported\":"
-				    "{\"connected\":\"false\",\"dead\":\"false\"}}}";
-
 connect:
 	ret = cloud_connect(cloud_backend, &will);
 	if (ret != CLOUD_CONNECT_RES_SUCCESS) {
@@ -1370,9 +1423,6 @@ connect:
 	};
 
 	while (true) {
-		if (abort_requested || disconnect_requested) {
-			break;
-		}
 		ret = poll(fds, ARRAY_SIZE(fds),
 			   cloud_keepalive_time_left(cloud_backend));
 		if (ret < 0) {
@@ -1398,29 +1448,15 @@ connect:
 			}
 			LOG_ERR("Socket error: POLLNVAL");
 			LOG_ERR("The cloud socket was unexpectedly closed.");
-			//error_handler(ERROR_CLOUD, -EIO);
-			//return;
-			atomic_set(&send_data_enable, 0);
-			cloud_disconnect(cloud_backend);
-			LOG_INF("Cloud disconnected");
-			k_delayed_work_cancel(&cloud_reboot_work);
-			LOG_INF("Attempting reconnect...");
-			modem_configure();
-			goto connect;
+			error_handler(ERROR_CLOUD, -EIO);
+			return;
 		}
 
 		if ((fds[0].revents & POLLHUP) == POLLHUP) {
 			LOG_ERR("Socket error: POLLHUP");
 			LOG_ERR("Connection was closed by the cloud.");
-			//error_handler(ERROR_CLOUD, -EIO);
-			//return;
-			atomic_set(&send_data_enable, 0);
-			cloud_disconnect(cloud_backend);
-			LOG_INF("Cloud disconnected");
-			k_delayed_work_cancel(&cloud_reboot_work);
-			LOG_INF("Attempting reconnect...");
-			modem_configure();
-			goto connect;
+			error_handler(ERROR_CLOUD, -EIO);
+			return;
 		}
 
 		if ((fds[0].revents & POLLERR) == POLLERR) {
@@ -1431,34 +1467,5 @@ connect:
 		}
 	}
 
-	if (abort_requested && !disconnect_requested) {
-		/* just drop the connection */
-		LOG_INF("Closing socket immediately");
-		close(cloud_backend->config->socket);
-		for (;;) {
-			// DIE
-		}
-	} else if (disconnect_requested) {
-		LOG_INF("Disconnecting gracefully");
-		if (abort_requested) {
-			/* update shadow to indicate we are disconnected */
-			struct cloud_msg msg = {
-				.qos = CLOUD_QOS_AT_MOST_ONCE,
-				.endpoint.type = CLOUD_EP_TOPIC_STATE,
-				.buf = disc_message,
-				.len = strlen(disc_message),
-			};
-			ret = cloud_send(cloud_backend, &msg);
-			LOG_INF("Shadow connected set false");
-		}
-		/* do an MQTT disconnect */
-		atomic_set(&send_data_enable, 0);
-		cloud_disconnect(cloud_backend);
-		LOG_INF("Cloud disconnected");
-		for (;;) {
-			// HALT
-		}
-	}
-	LOG_INF("Done.");
 	goto connect;
 }
