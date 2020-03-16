@@ -34,6 +34,9 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(nrf9160dk_demo, CONFIG_NRF9160DK_DEMO_LOG_LEVEL);
 
+/* uncomment to enable special large packets that grow each time */
+#define TEST_LARGE_PACKETS
+
 #define CLOUD_CONNACK_WAIT_DURATION	K_SECONDS(CONFIG_CLOUD_WAIT_DURATION)
 
 #if defined(CONFIG_BSD_LIBRARY) && \
@@ -134,7 +137,10 @@ static void work_init(void);
 static void sensor_data_send(struct cloud_channel_data *data);
 static void device_status_send(struct k_work *work);
 static void cycle_cloud_connection(struct k_work *work);
+#if !defined(TEST_LARGE_PACKETS)
 static void send_signon_message(void);
+#endif
+static void msg_send(const char *message);
 
 static void shutdown_modem(void)
 {
@@ -380,12 +386,57 @@ static void button_send(u8_t button_num, bool pressed)
 		button_cloud_data.tag = 0x1;
 	}
 
+#if !defined(TEST_LARGE_PACKETS)
 	LOG_INF("Sending button event for button %d=%s", button_num,
 		pressed ? "pressed" : "released");
 	k_work_submit_to_queue(&application_work_q, &send_button_data_work);
+#endif
 
-	if ((button_num == 4) && pressed) {
+	if (button_num == 4) {
+#if !defined(TEST_LARGE_PACKETS)
 		send_signon_message();
+#else
+		#define STEP_SIZE 512
+		#define STEP_LIMIT 10
+		#define OVERHEAD 46
+		#define START_SIZE (1536)
+		static int pass = 0;
+		static char *buf = NULL;
+		static int last_end = 0;
+		static char last_val = 'X';
+		int cur_size = START_SIZE + (pass * STEP_SIZE);
+
+		if (!buf) {
+			size_t len = STEP_SIZE * STEP_LIMIT + 1 + START_SIZE;
+			int i;
+
+			LOG_INF("Allocating buffer space");
+			buf = malloc(len);
+			if (!buf) {
+				LOG_ERR("OUT OF MEMORY");
+				return;
+			}
+			for (i = 0; i < len; i++) {
+				if (!(i % 4)) {
+					snprintf(&(buf[i]), 5, "%04X", i);
+				}
+			}
+		}
+		if (pass < STEP_LIMIT) {
+			pass++;
+		}
+
+
+		LOG_INF("Setting up message pass %d size %d", pass, cur_size);
+		if (last_end) {
+			buf[last_end] = last_val;
+		}
+
+		last_end = cur_size - OVERHEAD;
+		last_val = buf[last_end];
+		buf[last_end] = '\0';
+		msg_send(buf);
+#endif
 	}
 }
 
@@ -399,7 +450,11 @@ static void msg_send(const char *message)
 		return;
 	}
 
+#if !defined(TEST_LARGE_PACKETS)
 	msg_cloud_data.data.buf = strdup(message);
+#else
+	msg_cloud_data.data.buf = (char *)message;
+#endif
 	msg_cloud_data.data.len = strlen(message);
 	msg_cloud_data.tag += 1;
 
@@ -407,7 +462,7 @@ static void msg_send(const char *message)
 		msg_cloud_data.tag = 0x1;
 	}
 
-	LOG_INF("Sending message: %s", message);
+	LOG_INF("Sending message: len %d", msg_cloud_data.data.len);
 	k_work_submit_to_queue(&application_work_q, &send_msg_data_work);
 }
 
@@ -642,13 +697,15 @@ static void sensor_data_send(struct cloud_channel_data *data)
 
 	if (err) {
 		LOG_ERR("Unable to encode cloud data: %d", err);
+	} else {
+		err = cloud_send(cloud_backend, &msg);
 	}
-
-	err = cloud_send(cloud_backend, &msg);
 
 	if (data->type == CLOUD_CHANNEL_MSG) {
 		if (data->data.len) {
+#if !defined(TEST_LARGE_PACKETS)
 			free(data->data.buf);
+#endif
 			data->data.buf = NULL;
 			data->data.len = 0;
 		}
@@ -658,7 +715,7 @@ static void sensor_data_send(struct cloud_channel_data *data)
 
 	if (err) {
 		LOG_ERR("%s failed: %d", __func__, err);
-		cloud_error_handler(err);
+		//cloud_error_handler(err);
 	}
 }
 
@@ -731,6 +788,7 @@ void on_pairing_done(void)
 /** @brief Send helpful text to 9160DK user in nRFCloud
  *         Terminal card
  */
+#if !defined(TEST_LARGE_PACKETS)
 static void send_signon_message(void)
 {
 	msg_send(
@@ -745,6 +803,7 @@ static void send_signon_message(void)
 	     "  3. Use the FOTA update service to try out other examples.\n"
 	     "  Getting started can be found here: https://bit.ly/37NMvuo");
 }
+#endif
 
 void cloud_event_handler(const struct cloud_backend *const backend,
 			 const struct cloud_event *const evt,
@@ -768,7 +827,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 #endif
 
 		sensors_start();
-		send_signon_message();
+		//send_signon_message();
 		break;
 	case CLOUD_EVT_DISCONNECTED:
 		LOG_INF("CLOUD_EVT_DISCONNECTED");

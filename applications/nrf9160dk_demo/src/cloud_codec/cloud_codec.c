@@ -344,7 +344,11 @@ int cloud_encode_data(const struct cloud_channel_data *channel,
 	cJSON_Delete(root_obj);
 
 	output->buf = buffer;
-	output->len = strlen(buffer);
+	output->len = buffer ? strlen(buffer) : 0;
+
+	if (!buffer) {
+		return -ENOMEM;
+	}
 
 	return 0;
 }
