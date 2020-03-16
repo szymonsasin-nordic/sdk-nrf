@@ -135,6 +135,7 @@ static void sensor_data_send(struct cloud_channel_data *data);
 static void device_status_send(struct k_work *work);
 static void cycle_cloud_connection(struct k_work *work);
 static void send_signon_message(void);
+static void msg_send(const char *message);
 
 static void shutdown_modem(void)
 {
@@ -380,12 +381,53 @@ static void button_send(u8_t button_num, bool pressed)
 		button_cloud_data.tag = 0x1;
 	}
 
-	LOG_INF("Sending button event for button %d=%s", button_num,
-		pressed ? "pressed" : "released");
-	k_work_submit_to_queue(&application_work_q, &send_button_data_work);
+	//LOG_INF("Sending button event for button %d=%s", button_num,
+	//	pressed ? "pressed" : "released");
+	//k_work_submit_to_queue(&application_work_q, &send_button_data_work);
 
-	if ((button_num == 4) && pressed) {
-		send_signon_message();
+	if (button_num == 4) {
+		//send_signon_message();
+		#define STEP_SIZE 256
+		#define STEP_LIMIT 16
+		#define OVERHEAD 49
+		static int pass = 0;
+		static char *buf = NULL;
+		static int last_end = 0;
+
+		if (!buf) {
+			LOG_INF("Allocating buffer space");
+			buf = malloc(STEP_SIZE * STEP_LIMIT + 1);
+			if (!buf) {
+				LOG_ERR("OUT OF MEMORY");
+			}
+		}
+		if (pass < STEP_LIMIT) {
+			pass++;
+		}
+		
+		int i;
+
+		LOG_INF("Setting up message pass %d size %d", pass, STEP_SIZE);
+		for (i = (STEP_SIZE * (pass - 1)); i < STEP_SIZE * pass; i++) {
+			buf[i] = '0' + (i % 0x4F);
+		}
+		if (last_end) {
+			buf[last_end] = '.';
+		}
+
+		int overhead;
+
+		overhead = OVERHEAD + ((pass - 1) * 3);
+		if (pass >= 6) {
+			overhead++;
+		}
+		if (pass == 8) {
+			overhead++; // put it one byte below 2048?
+		}
+		last_end = i - overhead;
+		buf[last_end] = '\0';
+		LOG_INF("Sending message; overhead %d", overhead);
+		msg_send(buf);
 	}
 }
 
@@ -407,7 +449,8 @@ static void msg_send(const char *message)
 		msg_cloud_data.tag = 0x1;
 	}
 
-	LOG_INF("Sending message: %s", message);
+	//LOG_INF("Sending message: len %d: %s", msg_cloud_data.data.len, message);
+	LOG_INF("Sending message: len %d", msg_cloud_data.data.len);
 	k_work_submit_to_queue(&application_work_q, &send_msg_data_work);
 }
 
