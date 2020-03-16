@@ -737,12 +737,33 @@ static ssize_t nrf91_socket_offload_recvfrom(int sd, void *buf, short int len,
 static ssize_t nrf91_socket_offload_send(int sd, const void *buf, size_t len,
 					 int flags)
 {
-	return nrf_send(sd, buf, len, z_to_nrf_flags(flags));
+	if (IS_ENABLED(CONFIG_NRF91_SOCKET_SEND_SPLIT_LARGE_BLOCKS)) {
+		ssize_t actual_len = 0;
+		ssize_t ret_len;
+		size_t cur_len;
+		const u8_t *ptr = buf;
+
+		while (len) {
+			cur_len = MIN(len, CONFIG_NRF91_SOCKET_BLOCK_LIMIT);
+			ret_len = nrf_send(sd, ptr, cur_len, 
+					   z_to_nrf_flags(flags));
+			if (ret_len <= 0) { /* an error, so return it */
+				return ret_len;
+			}
+			actual_len += ret_len;
+			ptr += ret_len;
+			len -= ret_len;
+		}
+		return actual_len;
+	} else {
+		return nrf_send(sd, buf, len, z_to_nrf_flags(flags));
+	}
 }
 
-static ssize_t nrf91_socket_offload_sendto(int sd, const void *buf, size_t len,
-					   int flags, const struct sockaddr *to,
-					   socklen_t tolen)
+
+static ssize_t socket_offload_sendto(int sd, const void *buf, size_t len,
+				     int flags, const struct sockaddr *to,
+				     socklen_t tolen)
 {
 	ssize_t retval;
 
@@ -772,6 +793,36 @@ error:
 	retval = -1;
 	errno = ENOTSUP;
 	return retval;
+}
+
+static ssize_t nrf91_socket_offload_sendto(int sd, const void *buf, size_t len,
+					   int flags, const struct sockaddr *to,
+					   socklen_t tolen)
+{
+	if (IS_ENABLED(CONFIG_NRF91_SOCKET_SEND_SPLIT_LARGE_BLOCKS)) {
+		ssize_t actual_len = 0;
+		ssize_t ret_len;
+		size_t cur_len;
+		const u8_t *ptr = buf;
+
+		while (len) {
+			cur_len = MIN(len, CONFIG_NRF91_SOCKET_BLOCK_LIMIT);
+			ret_len = socket_offload_sendto(sd, ptr, cur_len, 
+						        z_to_nrf_flags(flags),
+						        to, tolen);
+			if (ret_len <= 0) { /* an error, so return it */
+				return ret_len;
+			}
+			actual_len += ret_len;
+			ptr += ret_len;
+			len -= ret_len;
+		}
+		return actual_len;
+	} else {
+		return socket_offload_sendto(sd, buf, len, 
+					     z_to_nrf_flags(flags),
+					     to, tolen);
+	}
 }
 
 static inline int nrf91_socket_offload_poll(struct pollfd *fds, int nfds,

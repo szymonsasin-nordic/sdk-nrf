@@ -387,16 +387,18 @@ static void button_send(u8_t button_num, bool pressed)
 
 	if (button_num == 4) {
 		//send_signon_message();
-		#define STEP_SIZE 256
+		#define STEP_SIZE 1
 		#define STEP_LIMIT 16
 		#define OVERHEAD 49
+		#define START_SIZE (2048-3)
 		static int pass = 0;
 		static char *buf = NULL;
 		static int last_end = 0;
+		int cur_size = START_SIZE + (pass * STEP_SIZE);
 
 		if (!buf) {
 			LOG_INF("Allocating buffer space");
-			buf = malloc(STEP_SIZE * STEP_LIMIT + 1);
+			buf = malloc(STEP_SIZE * STEP_LIMIT + 1 + START_SIZE);
 			if (!buf) {
 				LOG_ERR("OUT OF MEMORY");
 			}
@@ -407,8 +409,8 @@ static void button_send(u8_t button_num, bool pressed)
 		
 		int i;
 
-		LOG_INF("Setting up message pass %d size %d", pass, STEP_SIZE);
-		for (i = (STEP_SIZE * (pass - 1)); i < STEP_SIZE * pass; i++) {
+		LOG_INF("Setting up message pass %d size %d", pass, cur_size);
+		for (i = last_end; i < cur_size; i++) {
 			buf[i] = '0' + (i % 0x4F);
 		}
 		if (last_end) {
@@ -417,11 +419,11 @@ static void button_send(u8_t button_num, bool pressed)
 
 		int overhead;
 
-		overhead = OVERHEAD + ((pass - 1) * 3);
-		if (pass >= 6) {
+		overhead = OVERHEAD + (cur_size / 256) * 3;
+		if ((cur_size / 256) >= 6) {
 			overhead++;
 		}
-		if (pass == 8) {
+		if ((cur_size / 256) == 8) {
 			overhead++; // put it one byte below 2048?
 		}
 		last_end = i - overhead;
@@ -685,9 +687,9 @@ static void sensor_data_send(struct cloud_channel_data *data)
 
 	if (err) {
 		LOG_ERR("Unable to encode cloud data: %d", err);
+	} else {
+		err = cloud_send(cloud_backend, &msg);
 	}
-
-	err = cloud_send(cloud_backend, &msg);
 
 	if (data->type == CLOUD_CHANNEL_MSG) {
 		if (data->data.len) {
@@ -701,7 +703,7 @@ static void sensor_data_send(struct cloud_channel_data *data)
 
 	if (err) {
 		LOG_ERR("%s failed: %d", __func__, err);
-		cloud_error_handler(err);
+		//cloud_error_handler(err);
 	}
 }
 
@@ -811,7 +813,7 @@ void cloud_event_handler(const struct cloud_backend *const backend,
 #endif
 
 		sensors_start();
-		send_signon_message();
+		//send_signon_message();
 		break;
 	case CLOUD_EVT_DISCONNECTED:
 		LOG_INF("CLOUD_EVT_DISCONNECTED");
