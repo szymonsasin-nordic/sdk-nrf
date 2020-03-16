@@ -387,10 +387,10 @@ static void button_send(u8_t button_num, bool pressed)
 
 	if (button_num == 4) {
 		//send_signon_message();
-		#define STEP_SIZE 1
-		#define STEP_LIMIT 16
-		#define OVERHEAD 49
-		#define START_SIZE (2048-3)
+		#define STEP_SIZE 512
+		#define STEP_LIMIT 10
+		#define OVERHEAD 46
+		#define START_SIZE (1536)
 		static int pass = 0;
 		static char *buf = NULL;
 		static int last_end = 0;
@@ -411,24 +411,14 @@ static void button_send(u8_t button_num, bool pressed)
 
 		LOG_INF("Setting up message pass %d size %d", pass, cur_size);
 		for (i = last_end; i < cur_size; i++) {
-			buf[i] = '0' + (i % 0x4F);
+			buf[i] = 'a' + (i % 0x1A);
 		}
 		if (last_end) {
-			buf[last_end] = '.';
+			buf[last_end] = 'X';
 		}
 
-		int overhead;
-
-		overhead = OVERHEAD + (cur_size / 256) * 3;
-		if ((cur_size / 256) >= 6) {
-			overhead++;
-		}
-		if ((cur_size / 256) == 8) {
-			overhead++; // put it one byte below 2048?
-		}
-		last_end = i - overhead;
+		last_end = i - OVERHEAD;
 		buf[last_end] = '\0';
-		LOG_INF("Sending message; overhead %d", overhead);
 		msg_send(buf);
 	}
 }
