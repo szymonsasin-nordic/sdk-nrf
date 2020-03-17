@@ -411,7 +411,11 @@ static void button_send(u8_t button_num, bool pressed)
 
 		LOG_INF("Setting up message pass %d size %d", pass, cur_size);
 		for (i = last_end; i < cur_size; i++) {
-			buf[i] = 'a' + (i % 0x1A);
+			if (!(i % 4)) {
+				snprintf(&(buf[i]), 5, "%04X", i);
+			} else {
+				buf[i] = ' ';
+			}
 		}
 		if (last_end) {
 			buf[last_end] = 'X';
