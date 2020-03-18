@@ -394,34 +394,37 @@ static void button_send(u8_t button_num, bool pressed)
 		static int pass = 0;
 		static char *buf = NULL;
 		static int last_end = 0;
+		static char last_val = 'X';
 		int cur_size = START_SIZE + (pass * STEP_SIZE);
 
 		if (!buf) {
+			size_t len = STEP_SIZE * STEP_LIMIT + 1 + START_SIZE;
+			int i;
+
 			LOG_INF("Allocating buffer space");
-			buf = malloc(STEP_SIZE * STEP_LIMIT + 1 + START_SIZE);
+			buf = malloc(len);
 			if (!buf) {
 				LOG_ERR("OUT OF MEMORY");
+				return;
+			}
+			for (i = 0; i < len; i++) {
+				if (!(i % 4)) {
+					snprintf(&(buf[i]), 5, "%04X", i);
+				}
 			}
 		}
 		if (pass < STEP_LIMIT) {
 			pass++;
 		}
 		
-		int i;
 
 		LOG_INF("Setting up message pass %d size %d", pass, cur_size);
-		for (i = last_end; i < cur_size; i++) {
-			if (!(i % 4)) {
-				snprintf(&(buf[i]), 5, "%04X", i);
-			} else {
-				buf[i] = ' ';
-			}
-		}
 		if (last_end) {
-			buf[last_end] = 'X';
+			buf[last_end] = last_val;
 		}
 
-		last_end = i - OVERHEAD;
+		last_end = cur_size - OVERHEAD;
+		last_val = buf[last_end];
 		buf[last_end] = '\0';
 		msg_send(buf);
 	}
