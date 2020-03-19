@@ -440,7 +440,7 @@ static void msg_send(const char *message)
 		return;
 	}
 
-	msg_cloud_data.data.buf = strdup(message);
+	msg_cloud_data.data.buf = message; //strdup(message);
 	msg_cloud_data.data.len = strlen(message);
 	msg_cloud_data.tag += 1;
 
@@ -690,7 +690,7 @@ static void sensor_data_send(struct cloud_channel_data *data)
 
 	if (data->type == CLOUD_CHANNEL_MSG) {
 		if (data->data.len) {
-			free(data->data.buf);
+			//free(data->data.buf);
 			data->data.buf = NULL;
 			data->data.len = 0;
 		}
