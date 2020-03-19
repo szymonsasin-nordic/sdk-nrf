@@ -10,10 +10,13 @@
 #include <net/cloud.h>
 #include <net/socket.h>
 #include <dk_buttons_and_leds.h>
+#include <stdio.h>
 
 #include <logging/log.h>
 
 LOG_MODULE_REGISTER(cloud_client, CONFIG_CLOUD_CLIENT_LOG_LEVEL);
+
+#define BIG_PACKET_TEST
 
 static struct cloud_backend *cloud_backend;
 static struct k_delayed_work cloud_update_work;
@@ -23,6 +26,57 @@ static void cloud_update_work_fn(struct k_work *work)
 {
 	int err;
 
+#if defined(BIG_PACKET_TEST)
+	#define STEP_SIZE 512
+	#define STEP_LIMIT 10
+	#define OVERHEAD 46
+	#define START_SIZE 1536
+	static int pass = 0;
+	static char *buf = NULL;
+	static int last_end = 0;
+	static char last_val[6];
+	int cur_size = START_SIZE + (pass * STEP_SIZE);
+
+	if (!buf) {
+		size_t len = STEP_SIZE * STEP_LIMIT + 1 + START_SIZE;
+		int i;
+
+		printk("Allocating buffer space for %d\n", len);
+		buf = malloc(len);
+		if (!buf) {
+			printk("OUT OF MEMORY\n");
+			return;
+		}
+		memcpy(buf, CONFIG_CLOUD_MESSAGE, 36);
+		for (i = 36; i < len; i++) {
+			if (!(i % 4)) {
+				snprintf(&(buf[i]), 5, "%04X", i);
+			}
+		}
+	}
+	if (pass < STEP_LIMIT) {
+		pass++;
+	}
+
+	printk("Setting up message pass %d size %d\n", pass, cur_size);
+	if (last_end) {
+		memcpy(&buf[last_end - 3], last_val, 5);
+	}
+
+	last_end = cur_size - OVERHEAD;
+	memcpy(last_val, &buf[last_end - 3], 5);
+	strncpy(&buf[last_end - 3], "\"}}}", 5);
+
+	struct cloud_msg msg = {
+		.qos = CLOUD_QOS_AT_MOST_ONCE,
+		.endpoint.type = CLOUD_EP_TOPIC_MSG,
+		.buf = buf,
+		.len = last_end + 1
+	};
+	printk("Publishing message: %s\n", buf);
+
+#else
+	printk("Publishing message: %s\n", CONFIG_CLOUD_MESSAGE);
 	LOG_INF("Publishing message: %s", log_strdup(CONFIG_CLOUD_MESSAGE));
 
 	struct cloud_msg msg = {
@@ -31,6 +85,7 @@ static void cloud_update_work_fn(struct k_work *work)
 		.buf = CONFIG_CLOUD_MESSAGE,
 		.len = strlen(CONFIG_CLOUD_MESSAGE)
 	};
+#endif
 
 	err = cloud_send(cloud_backend, &msg);
 	if (err) {
