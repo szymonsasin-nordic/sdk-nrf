@@ -151,6 +151,9 @@ static int z_to_nrf_optname(int z_in_level, int z_in_optname,
 		case SO_RCVTIMEO:
 			*nrf_out_optname = NRF_SO_RCVTIMEO;
 			break;
+		case SO_SNDTIMEO:
+			*nrf_out_optname = NRF_SO_SNDTIMEO;
+			break;
 		case SO_BINDTODEVICE:
 			*nrf_out_optname = NRF_SO_BINDTODEVICE;
 			break;
