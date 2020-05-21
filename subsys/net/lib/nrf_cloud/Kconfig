@@ -88,6 +88,14 @@ config NRF_CLOUD_CONNECTION_POLL_THREAD
 	bool "Poll cloud connection in a separate thread"
 	depends on CLOUD_API
 
+config NRF_CLOUD_SEND_TIMEOUT_MS
+	int "Timeout in ms for publishing MQTT messages"
+	default 300000
+
+config NRF_CLOUD_RECEIVE_TIMEOUT_MS
+	int "Timeout in ms for reading published MQTT messages"
+	default 300000
+
 module=NRF_CLOUD
 module-dep=LOG
 module-str=Log level for nRF Cloud

@@ -32,6 +32,12 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #endif
 #endif /* defined(CONFIG_NRF_CLOUD_PROVISION_CERTIFICATES) */
 
+/* direction for setting timeout */
+enum socket_direction {
+	SOCKET_SEND,
+	SOCKET_RECEIVE
+};
+
 #if !defined(NRF_CLOUD_CLIENT_ID)
 #define NRF_IMEI_LEN 15
 #define NRF_CLOUD_CLIENT_ID_LEN (NRF_IMEI_LEN + 4)
@@ -597,6 +603,36 @@ static void aws_fota_cb_handler(struct aws_fota_event *fota_evt)
 }
 #endif /* defined(CONFIG_AWS_FOTA) */
 
+static int socket_timeout_set(int fd, const enum socket_direction send, 
+	const u32_t timeout_ms)
+{
+	int err;
+
+	if (timeout_ms == K_FOREVER) {
+		return 0;
+	}
+
+	struct timeval timeo = {
+		.tv_sec = (timeout_ms / 1000),
+		.tv_usec = (timeout_ms % 1000) * 1000,
+	};
+
+	const char *dir_str = (send == SOCKET_SEND) ? "send" : "receive";
+
+	int opt_name = (send == SOCKET_SEND) ? SO_SNDTIMEO : SO_RCVTIMEO;
+
+	LOG_INF("Configuring %s socket timeout (%ld s)", dir_str, timeo.tv_sec);
+
+	err = setsockopt(fd, SOL_SOCKET, opt_name, &timeo, sizeof(timeo));
+	if (err) {
+		LOG_WRN("Failed to set socket %s timeout, errno %d",
+			dir_str, errno);
+		return -errno;
+	}
+
+	return 0;
+}
+
 /* Connect to MQTT broker. */
 int nct_mqtt_connect(void)
 {
@@ -644,7 +680,18 @@ int nct_mqtt_connect(void)
 	err = mqtt_connect(&nct.client);
 	if (err != 0) {
 		LOG_DBG("mqtt_connect failed %d", err);
+		return err;
 	}
+
+	err = socket_timeout_set(nct_socket_get(), SOCKET_SEND, 
+		CONFIG_NRF_CLOUD_SEND_TIMEOUT_MS);
+	if (err != 0) {
+		return err;
+	}
+
+	err = socket_timeout_set(nct_socket_get(), SOCKET_RECEIVE, 
+		CONFIG_NRF_CLOUD_RECEIVE_TIMEOUT_MS);
+
 	return err;
 }
 
