@@ -639,7 +639,7 @@ static int nrf91_socket_offload_setsockopt(void *obj, int level, int optname,
 	int retval;
 	int nrf_level;
 	int nrf_optname;
-	struct nrf_timeval nrf_rcvtimeo;
+	struct nrf_timeval nrf_timeo;
 	void *nrf_optval = (void *)optval;
 	nrf_socklen_t nrf_optlen = optlen;
 
@@ -648,10 +648,11 @@ static int nrf91_socket_offload_setsockopt(void *obj, int level, int optname,
 	if (z_to_nrf_optname(level, optname, &nrf_optname) < 0)
 		goto error;
 
-	if ((level == SOL_SOCKET) && (optname == SO_RCVTIMEO)) {
-		nrf_rcvtimeo.tv_sec = ((struct timeval *)optval)->tv_sec;
-		nrf_rcvtimeo.tv_usec = ((struct timeval *)optval)->tv_usec;
-		nrf_optval = &nrf_rcvtimeo;
+	if ((level == SOL_SOCKET) &&
+	    ((optname == SO_RCVTIMEO) || (optname == SO_SNDTIMEO))) {
+		nrf_timeo.tv_sec = ((struct timeval *)optval)->tv_sec;
+		nrf_timeo.tv_usec = ((struct timeval *)optval)->tv_usec;
+		nrf_optval = &nrf_timeo;
 		nrf_optlen = sizeof(struct nrf_timeval);
 	}
 
@@ -673,7 +674,7 @@ static int nrf91_socket_offload_getsockopt(void *obj, int level, int optname,
 	int retval;
 	int nrf_level;
 	int nrf_optname;
-	struct nrf_timeval nrf_rcvtimeo = {0, 0};
+	struct nrf_timeval nrf_timeo = {0, 0};
 	void *nrf_optval = optval;
 	nrf_socklen_t nrf_optlen = (nrf_socklen_t)*optlen;
 
@@ -682,8 +683,9 @@ static int nrf91_socket_offload_getsockopt(void *obj, int level, int optname,
 	if (z_to_nrf_optname(level, optname, &nrf_optname) < 0)
 		goto error;
 
-	if ((level == SOL_SOCKET) && (optname == SO_RCVTIMEO)) {
-		nrf_optval = &nrf_rcvtimeo;
+	if ((level == SOL_SOCKET) &&
+	    ((optname == SO_RCVTIMEO) || (optname == SO_SNDTIMEO))) {
+		nrf_optval = &nrf_timeo;
 		nrf_optlen = sizeof(struct nrf_timeval);
 	}
 
@@ -701,11 +703,12 @@ static int nrf91_socket_offload_getsockopt(void *obj, int level, int optname,
 				 */
 				bsd_os_errno_set(*(int *)optval);
 				*(int *)optval = errno;
-			} else if (optname == SO_RCVTIMEO) {
+			} else if ((optname == SO_RCVTIMEO) ||
+				   (optname == SO_SNDTIMEO)) {
 				((struct timeval *)optval)->tv_sec =
-					nrf_rcvtimeo.tv_sec;
+					nrf_timeo.tv_sec;
 				((struct timeval *)optval)->tv_usec =
-					nrf_rcvtimeo.tv_usec;
+					nrf_timeo.tv_usec;
 				*optlen = sizeof(struct timeval);
 			}
 		}
