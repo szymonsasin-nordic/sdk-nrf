@@ -3,7 +3,6 @@
  *
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
-
 #include <zephyr.h>
 #include <kernel_structs.h>
 #include <stdio.h>
@@ -42,6 +41,10 @@
 #include <modem/at_cmd.h>
 #include "watchdog.h"
 #include "gps_controller.h"
+#undef __XSI_VISIBLE
+#define __XSI_VISIBLE 1
+#include <time.h>
+#include <posix/time.h>
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(asset_tracker, CONFIG_ASSET_TRACKER_LOG_LEVEL);
@@ -992,6 +995,35 @@ static void device_status_send(struct k_work *work)
 		LOG_ERR("Unable to obtain modem parameters: %d", ret);
 	} else {
 		modem_ptr = &modem_param;
+		if (modem_param.network.date_time.value_string) {
+			LOG_INF("modem_info.network.date_time: %s",
+				modem_param.network.date_time.value_string);
+
+			struct tm tm;
+			char *rm;
+			struct timespec ts;
+
+			/* 20/06/12,00:47:47-28 */
+			rm = strptime(modem_param.network.date_time.value_string,
+				"%y/%m/%d,%H:%M:%S", &tm);
+			if (rm) {
+				ts.tv_sec = mktime(&tm);
+				ts.tv_nsec = 0;
+				LOG_INF("setting time to %lld", ts.tv_sec);
+
+				if (!clock_settime(CLOCK_REALTIME, &ts)) {
+					LOG_INF("time set");
+				} else {
+					LOG_ERR("error %d on clock_settime()",
+						errno);
+				}
+			} else {
+				LOG_ERR("strptime() could not parse time");
+			}
+		} else {
+			LOG_WRN("modem_info.network.date_time: empty");
+		}
+
 	}
 #endif /* CONFIG_MODEM_INFO */
 
@@ -1199,6 +1231,20 @@ void light_sensor_data_send(void)
 		       err);
 		cloud_error_handler(err);
 	}
+
+	struct timespec ts;
+	char dst[64];
+	struct tm tm;
+	time_t t;
+
+	if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
+		LOG_INF("Unix time %lld", ts.tv_sec);
+		t = (time_t)ts.tv_sec;
+		tm = *(gmtime(&t));
+		strftime(dst, sizeof(dst), "%a, %d %b %Y %T %z UTC", &tm);
+		LOG_INF("Date/time %s", log_strdup(dst));
+	}
+
 }
 #endif /* CONFIG_LIGHT_SENSOR */
 
