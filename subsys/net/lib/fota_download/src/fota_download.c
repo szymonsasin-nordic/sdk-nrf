@@ -11,6 +11,8 @@
 #include <dfu/dfu_target.h>
 #include <pm_config.h>
 
+//#include "peripheral_dfu.h"
+
 #ifdef PM_S1_ADDRESS
 /* MCUBoot support is required */
 #include <fw_info.h>
@@ -24,6 +26,7 @@ static fota_download_callback_t callback;
 static struct download_client   dlc;
 static struct k_delayed_work    dlc_with_offset_work;
 static int socket_retries_left;
+static bool update_peripheral = false;
 
 static void send_evt(enum fota_download_evt_id id)
 {
@@ -57,6 +60,15 @@ static void dfu_target_callback_handler(enum dfu_target_evt_id evt)
 	}
 }
 
+
+int set_peripheral_update()
+{
+
+  update_peripheral = true;
+  return 0;
+}
+
+
 static int download_client_callback(const struct download_client_evt *event)
 {
 	static bool first_fragment = true;
@@ -70,6 +82,23 @@ static int download_client_callback(const struct download_client_evt *event)
 
 	switch (event->id) {
 	case DOWNLOAD_CLIENT_EVT_FRAGMENT: {
+
+
+
+
+                /*Send to the peripheral fota handler here?*/
+                //Not sure what we care about. Should just chunk and write to GATT?
+                //Step 1: set Flag
+#ifdef CONFIG_APR_GATEWAY
+                if(update_peripheral)
+                {
+                  //peripheral_dfu(event->fragment.buf,
+                  //                event->fragment.len);
+		err = 0;
+                  return err;
+                }
+#endif
+
 		if (first_fragment) {
 			err = download_client_file_size_get(&dlc, &file_size);
 			if (err != 0) {

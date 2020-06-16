@@ -1,0 +1,32 @@
+# Kconfig - nRF91 APRGW board configuration
+#
+# Copyright (c) 2019 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+
+module=BOARD
+module-dep=LOG
+module-str=Log level for board
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+if BOARD_NRF9160_APRGW || BOARD_NRF9160_APRGWNS
+
+config BOARD_NRF52840_GPIO_RESET
+        bool "Use nRF52840 APRGW GPIO reset pin"
+	    default y if BT_H4
+        help
+          Use a GPIO pin to reset the nRF52840 controller and let it wait
+          until all bytes traveling to the H4 device have been received
+          and drained, thus ensuring communication can begin correctly.
+
+if BOARD_NRF52840_GPIO_RESET
+
+config BOARD_NRF52840_GPIO_RESET_PIN
+        int "Reset pin"
+        default 10
+        help
+          GPIO pin on the nRF9160 used to reset the nRF52840.
+
+endif
+
+endif # BOARD_NRF9160_APRGW || BOARD_NRF9160_APRGWNS

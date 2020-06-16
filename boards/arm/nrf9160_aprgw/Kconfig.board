@@ -1,0 +1,17 @@
+# Kconfig - nRF91 APRGW board configuration
+#
+# Copyright (c) 2019 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+
+if SOC_NRF9160_SICA
+
+config BOARD_NRF9160_APRGW
+	bool "nRF9160 APRGW"
+	depends on !TRUSTED_EXECUTION_NONSECURE
+
+config BOARD_NRF9160_APRGWNS
+	bool "nRF9160 APRGW non-secure"
+	depends on TRUSTED_EXECUTION_NONSECURE
+
+endif # SOC_NRF9160_SICA

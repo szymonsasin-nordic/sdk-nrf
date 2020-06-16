@@ -28,6 +28,7 @@ enum cloud_state {
 
 /**@brief Cloud events that can be notified asynchronously by the backend. */
 enum cloud_event_type {
+	CLOUD_EVT_CONNECTING,
 	CLOUD_EVT_CONNECTED,
 	CLOUD_EVT_DISCONNECTED,
 	CLOUD_EVT_READY,
@@ -36,8 +37,19 @@ enum cloud_event_type {
 	CLOUD_EVT_DATA_RECEIVED,
 	CLOUD_EVT_PAIR_REQUEST,
 	CLOUD_EVT_PAIR_DONE,
+	CLOUD_EVT_FOTA_START,
 	CLOUD_EVT_FOTA_DONE,
+	CLOUD_EVT_FOTA_ERASE_PENDING,
+	CLOUD_EVT_FOTA_ERASE_DONE,
 	CLOUD_EVT_COUNT
+};
+
+enum cloud_disconnected_err_type {
+	CLOUD_DISCONNECT_ERR_USER_REQUEST,
+	CLOUD_DISCONNECT_ERR_CLOSED_BY_REMOTE,
+	CLOUD_DISCONNECT_ERR_INVALID_REQUEST,
+	CLOUD_DISCONNECT_ERR_MISC,
+	CLOUD_DISCONN_ERR_COUNT
 };
 
 /**@brief Quality of Service for message sent by a cloud backend. */
@@ -60,6 +72,27 @@ enum cloud_endpoint_type {
 	CLOUD_EP_COMMON_COUNT,
 	CLOUD_EP_PRIV_START = CLOUD_EP_COMMON_COUNT,
 	CLOUD_EP_PRIV_END = INT16_MAX
+};
+
+/**@brief Cloud connect results. */
+enum cloud_connect_result {
+	CLOUD_CONNECT_RES_SUCCESS = 0,
+
+	CLOUD_CONNECT_RES_ERR_NOT_INITD = -1,
+	CLOUD_CONNECT_RES_ERR_INVALID_PARAM = -2,
+	CLOUD_CONNECT_RES_ERR_NETWORK = -3,
+	CLOUD_CONNECT_RES_ERR_BACKEND = -4,
+	CLOUD_CONNECT_RES_ERR_MISC = -5,
+	CLOUD_CONNECT_RES_ERR_NO_MEM = -6,
+	/* Invalid private key */
+	CLOUD_CONNECT_RES_ERR_PRV_KEY = -7,
+	/* Invalid CA or client cert */
+	CLOUD_CONNECT_RES_ERR_CERT = -8,
+	/* Other cert issue */
+	CLOUD_CONNECT_RES_ERR_CERT_MISC = -9,
+	/* Timeout, SIM card may be out of data */
+	CLOUD_CONNECT_RES_ERR_TIMEOUT_NO_DATA = -10,
+	CLOUD_CONNECT_RES_ERR_ALREADY_CONNECTED = -11,
 };
 
 /** @brief Forward declaration of cloud backend type. */
@@ -86,6 +119,7 @@ struct cloud_event {
 	union {
 		struct cloud_msg msg;
 		int err;
+		bool persistent_session;
 	} data;
 };
 
@@ -190,13 +224,13 @@ static inline int cloud_uninit(const struct cloud_backend *const backend)
  *
  * @param backend Pointer to a cloud backend structure.
  *
- * @return 0 or a negative error code indicating reason of failure.
+ * @return connect result defined by enum cloud_connect_result.
  */
 static inline int cloud_connect(const struct cloud_backend *const backend)
 {
 	if (backend == NULL || backend->api == NULL ||
 	    backend->api->connect == NULL) {
-		return -ENOTSUP;
+		return CLOUD_CONNECT_RES_ERR_INVALID_PARAM;
 	}
 
 	return backend->api->connect(backend);
@@ -352,6 +386,22 @@ static inline int cloud_user_data_set(struct cloud_backend *const backend,
 	}
 
 	return backend->api->user_data_set(backend, user_data);
+}
+
+/**
+ * @brief Calls the user-provided event handler with event data.
+ *
+ * @param backend	Pointer to cloud backend.
+ * @param evt		Pointer to event data.
+ * @param user_data	Pointer to user-defined data.
+ */
+static inline void cloud_notify_event(struct cloud_backend *backend,
+				      struct cloud_event *evt,
+				      void *user_data)
+{
+	if (backend->config->handler) {
+		backend->config->handler(backend, evt, user_data);
+	}
 }
 
 /**

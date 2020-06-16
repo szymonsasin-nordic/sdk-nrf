@@ -11,6 +11,7 @@
 #include <net/aws_jobs.h>
 
 #include "aws_fota_json.h"
+#include <net/fota_download.h>
 
 struct location_obj {
 	const char *protocol;
@@ -21,6 +22,10 @@ struct location_obj {
 struct job_document_obj {
 	const char *operation;
 	const char *fw_version;
+        /*Apricity Added*/
+        const char *type;
+        const char *peripheral_address;
+        /****************/
 	int size;
 	struct location_obj location;
 };
@@ -63,6 +68,14 @@ static const struct json_obj_descr job_document_obj_descr[] = {
 			    JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM_NAMED(struct job_document_obj, "fwversion",
 				  fw_version, JSON_TOK_STRING),
+
+        /*Apricity Added*/
+	JSON_OBJ_DESCR_PRIM_NAMED(struct job_document_obj, "type",
+				  type, JSON_TOK_STRING),
+        JSON_OBJ_DESCR_PRIM_NAMED(struct job_document_obj, "peripheralAddress",
+				  peripheral_address, JSON_TOK_STRING),
+        /****************/
+
 	JSON_OBJ_DESCR_PRIM(struct job_document_obj, size, JSON_TOK_NUMBER),
 	JSON_OBJ_DESCR_OBJECT(struct job_document_obj, location,
 			      location_obj_descr),
@@ -203,6 +216,15 @@ int aws_fota_parse_DescribeJobExecution_rsp(char *job_document,
 	    && exec_obj->version_number != 0
 	    && job_doc_obj->location.host != 0
 	    && job_doc_obj->location.path != 0) {
+
+                printk("Firmware Type: %s\n:", exec_obj->job_document.type);
+                if(!strcmp(exec_obj->job_document.type, "peripheral"))
+                {
+                  set_peripheral_update();
+                }
+
+                printk("Peripheral Address: %s\n:", exec_obj->job_document.peripheral_address);
+
 		strncpy_nullterm(job_id_buf, exec_obj->job_id,
 				AWS_JOBS_JOB_ID_MAX_LEN);
 		*version_number = exec_obj->version_number;
@@ -212,6 +234,7 @@ int aws_fota_parse_DescribeJobExecution_rsp(char *job_document,
 		strncpy_nullterm(file_path_buf,
 				job_doc_obj->location.path,
 				CONFIG_AWS_FOTA_FILE_PATH_MAX_LEN);
+
 	} else {
 		/* A field was not decoded correctly which means we are missing
 		 * data.

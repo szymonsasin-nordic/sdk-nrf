@@ -3,9 +3,8 @@
  *
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
-
+#include <net/socket.h>
 #include <net/cloud.h>
-#include <net/cloud_backend.h>
 #include <nrf_cloud.h>
 #include "nrf_cloud_codec.h"
 #include "nrf_cloud_fsm.h"
@@ -27,10 +26,15 @@ LOG_MODULE_REGISTER(nrf_cloud, CONFIG_NRF_CLOUD_LOG_LEVEL);
 /* Maintains the state with respect to the cloud. */
 static volatile enum nfsm_state m_current_state = STATE_IDLE;
 
+/* Flag to indicate if a disconnect has been requested. */
+static atomic_t disconnect_requested;
+
 /* Handler registered by the application with the module to receive
  * asynchronous events.
  */
 static nrf_cloud_event_handler_t m_event_handler;
+
+K_MUTEX_DEFINE(m_state_mutex);
 
 enum nfsm_state nfsm_get_current_state(void)
 {
@@ -40,12 +44,14 @@ enum nfsm_state nfsm_get_current_state(void)
 void nfsm_set_current_state_and_notify(enum nfsm_state state,
 				       const struct nrf_cloud_evt *evt)
 {
+	k_mutex_lock(&m_state_mutex, K_FOREVER);
 	LOG_DBG("state: %d", state);
 
 	m_current_state = state;
 	if ((m_event_handler != NULL) && (evt != NULL)) {
 		m_event_handler(evt);
 	}
+	k_mutex_unlock(&m_state_mutex);
 }
 
 int nrf_cloud_init(const struct nrf_cloud_init_param *param)
@@ -88,6 +94,7 @@ int nrf_cloud_connect(const struct nrf_cloud_connect_param *param)
 	if (NOT_VALID_STATE(STATE_INITIALIZED)) {
 		return -EACCES;
 	}
+	atomic_set(&disconnect_requested, 0);
 	return nct_connect();
 }
 
@@ -97,6 +104,8 @@ int nrf_cloud_disconnect(void)
 	    NOT_VALID_STATE(STATE_CC_CONNECTED)) {
 		return -EACCES;
 	}
+
+	atomic_set(&disconnect_requested, 1);
 	return nct_disconnect();
 }
 
@@ -211,11 +220,42 @@ void nrf_cloud_process(void)
 	nct_process();
 }
 
-#if defined(CONFIG_CLOUD_API)
+static int translate_connect_error(const int err)
+{
+	switch (err) {
+	case 0:
+		return CLOUD_CONNECT_RES_SUCCESS;
+	case -ECHILD:
+		return CLOUD_CONNECT_RES_ERR_NETWORK;
+	case -EACCES:
+		return CLOUD_CONNECT_RES_ERR_NOT_INITD;
+	case -ENOEXEC:
+		return CLOUD_CONNECT_RES_ERR_BACKEND;
+	case -EINVAL:
+		return CLOUD_CONNECT_RES_ERR_PRV_KEY;
+	case -EOPNOTSUPP:
+		return CLOUD_CONNECT_RES_ERR_CERT;
+	case -ECONNREFUSED:
+		return CLOUD_CONNECT_RES_ERR_CERT_MISC;
+	case -ETIMEDOUT:
+		return CLOUD_CONNECT_RES_ERR_TIMEOUT_NO_DATA;
+	case -ENOMEM:
+		return CLOUD_CONNECT_RES_ERR_NO_MEM;
+	case -EINPROGRESS:
+		return CLOUD_CONNECT_RES_ERR_ALREADY_CONNECTED;
+	default:
+		LOG_ERR("nRF cloud connect failed %d", err);
+		return CLOUD_CONNECT_RES_ERR_MISC;
+	}
+}
 
+#if defined(CONFIG_CLOUD_API)
 /* Cloud API specific wrappers. */
 
+#define POLL_TIMEOUT_MS 500
 static struct cloud_backend *nrf_cloud_backend;
+static K_SEM_DEFINE(connection_poll_sem, 0, 1);
+static atomic_t connection_poll_active;
 
 static void event_handler(const struct nrf_cloud_evt *nrf_cloud_evt)
 {
@@ -227,7 +267,7 @@ static void event_handler(const struct nrf_cloud_evt *nrf_cloud_evt)
 		LOG_DBG("NRF_CLOUD_EVT_TRANSPORT_CONNECTED");
 
 		evt.type = CLOUD_EVT_CONNECTED;
-
+		evt.data.persistent_session = (nrf_cloud_evt->status != 0);
 		cloud_notify_event(nrf_cloud_backend, &evt, config->user_data);
 		break;
 	case NRF_CLOUD_EVT_USER_ASSOCIATION_REQUEST:
@@ -265,6 +305,18 @@ static void event_handler(const struct nrf_cloud_evt *nrf_cloud_evt)
 	case NRF_CLOUD_EVT_TRANSPORT_DISCONNECTED:
 		LOG_DBG("NRF_CLOUD_EVT_TRANSPORT_DISCONNECTED");
 
+		evt.data.err = CLOUD_DISCONNECT_ERR_MISC;
+
+		if (atomic_get(&disconnect_requested)) {
+#if IS_ENABLED(CONFIG_NRF_CLOUD_CONNECTION_POLL_THREAD)
+			if (atomic_get(&connection_poll_active)) {
+				/* Poll thread will send disconnect event */
+				break;
+			}
+#endif
+			evt.data.err = CLOUD_DISCONNECT_ERR_USER_REQUEST;
+		}
+
 		evt.type = CLOUD_EVT_DISCONNECTED;
 
 		cloud_notify_event(nrf_cloud_backend, &evt, config->user_data);
@@ -298,7 +350,7 @@ static void event_handler(const struct nrf_cloud_evt *nrf_cloud_evt)
 	}
 }
 
-static int init(const struct cloud_backend *const backend,
+static int api_init(const struct cloud_backend *const backend,
 		cloud_evt_handler_t handler)
 {
 	const struct nrf_cloud_init_param params = {
@@ -311,30 +363,52 @@ static int init(const struct cloud_backend *const backend,
 	return nrf_cloud_init(&params);
 }
 
-static int uninit(const struct cloud_backend *const backend)
+static int api_uninit(const struct cloud_backend *const backend)
 {
 	LOG_INF("uninit() is not implemented");
 
 	return 0;
 }
 
-static int connect(const struct cloud_backend *const backend)
+static int start_connection_poll(const struct cloud_backend *const backend)
+{
+	if (m_current_state == STATE_IDLE) {
+		return -EACCES;
+	}
+
+	if (atomic_get(&connection_poll_active)) {
+		LOG_DBG("Connection poll in progress");
+		return -EINPROGRESS;
+	}
+
+	atomic_set(&disconnect_requested, 0);
+	k_sem_give(&connection_poll_sem);
+
+	return CLOUD_CONNECT_RES_SUCCESS;
+}
+
+static int api_connect(const struct cloud_backend *const backend)
 {
 	int err;
 
-	err = nrf_cloud_connect(NULL);
+	if (IS_ENABLED(CONFIG_NRF_CLOUD_CONNECTION_POLL_THREAD)) {
+		err = start_connection_poll(backend);
+	} else {
+		err = nrf_cloud_connect(NULL);
+		if (!err) {
+			backend->config->socket = nct_socket_get();
+		}
+	}
 
-	backend->config->socket = nct_socket_get();
-
-	return err;
+	return translate_connect_error(err);
 }
 
-static int disconnect(const struct cloud_backend *const backend)
+static int api_disconnect(const struct cloud_backend *const backend)
 {
 	return nrf_cloud_disconnect();
 }
 
-static int send(const struct cloud_backend *const backend,
+static int api_send(const struct cloud_backend *const backend,
 		const struct cloud_msg *const msg)
 {
 	int err = 0;
@@ -388,7 +462,7 @@ static int send(const struct cloud_backend *const backend,
 	return 0;
 }
 
-static int ping(const struct cloud_backend *const backend)
+static int api_ping(const struct cloud_backend *const backend)
 {
 	/* TODO: Do only ping, nrf_cloud_process() also checks for input. */
 	nrf_cloud_process();
@@ -396,19 +470,19 @@ static int ping(const struct cloud_backend *const backend)
 	return 0;
 }
 
-static int keepalive_time_left(const struct cloud_backend *const backend)
+static int api_keepalive_time_left(const struct cloud_backend *const backend)
 {
 	return nct_keepalive_time_left();
 }
 
-static int input(const struct cloud_backend *const backend)
+static int api_input(const struct cloud_backend *const backend)
 {
 	nrf_cloud_process();
 
 	return 0;
 }
 
-static int user_data_set(const struct cloud_backend *const backend,
+static int api_user_data_set(const struct cloud_backend *const backend,
 			 void *user_data)
 {
 	backend->config->user_data = user_data;
@@ -416,16 +490,119 @@ static int user_data_set(const struct cloud_backend *const backend,
 	return 0;
 }
 
+void connection_poll(void)
+{
+	int ret;
+	struct pollfd fds[1];
+	struct cloud_event cloud_evt = {
+		.type = CLOUD_EVT_DISCONNECTED,
+		.data = { .err = CLOUD_DISCONNECT_ERR_MISC}
+	};
+
+start:
+	k_sem_take(&connection_poll_sem, K_FOREVER);
+	atomic_set(&connection_poll_active, 1);
+
+	cloud_evt.data.err = CLOUD_CONNECT_RES_SUCCESS;
+	cloud_evt.type = CLOUD_EVT_CONNECTING;
+	cloud_notify_event(nrf_cloud_backend, &cloud_evt, NULL);
+
+	ret = nrf_cloud_connect(NULL);
+	ret = translate_connect_error(ret);
+
+	if (ret != CLOUD_CONNECT_RES_SUCCESS) {
+		cloud_evt.data.err = ret;
+		cloud_evt.type = CLOUD_EVT_CONNECTING;
+		cloud_notify_event(nrf_cloud_backend, &cloud_evt, NULL);
+		goto reset;
+	} else {
+		LOG_DBG("Cloud connection request sent.");
+	}
+
+	fds[0].fd = nct_socket_get();
+	fds[0].events = POLLIN;
+
+	/* Only disconnect events will occur below */
+	cloud_evt.type = CLOUD_EVT_DISCONNECTED;
+
+	while (true) {
+		ret = poll(fds, ARRAY_SIZE(fds), POLL_TIMEOUT_MS);
+
+		if (atomic_get(&disconnect_requested)) {
+			atomic_set(&disconnect_requested, 0);
+			LOG_DBG("Expected disconnect event.");
+			cloud_evt.data.err = CLOUD_DISCONNECT_ERR_USER_REQUEST;
+			cloud_notify_event(nrf_cloud_backend, &cloud_evt, NULL);
+			goto reset;
+		}
+
+		if (ret < 0) {
+			LOG_DBG("poll() returned an error: %d", ret);
+			cloud_evt.data.err = CLOUD_DISCONNECT_ERR_MISC;
+			break;
+		}
+
+		if (ret == 0) {
+			if (cloud_keepalive_time_left(nrf_cloud_backend) <
+			    POLL_TIMEOUT_MS) {
+				api_ping(nrf_cloud_backend);
+			}
+			continue;
+		}
+
+		if ((fds[0].revents & POLLIN) == POLLIN) {
+			api_input(nrf_cloud_backend);
+			continue;
+		}
+
+		if ((fds[0].revents & POLLNVAL) == POLLNVAL) {
+			LOG_DBG("Socket error: POLLNVAL");
+			LOG_DBG("The cloud socket was unexpectedly closed.");
+			cloud_evt.data.err =
+				CLOUD_DISCONNECT_ERR_INVALID_REQUEST;
+			break;
+		}
+
+		if ((fds[0].revents & POLLHUP) == POLLHUP) {
+			LOG_DBG("Socket error: POLLHUP");
+			LOG_DBG("Connection was closed by the cloud.");
+			cloud_evt.data.err =
+				CLOUD_DISCONNECT_ERR_CLOSED_BY_REMOTE;
+			break;
+		}
+
+		if ((fds[0].revents & POLLERR) == POLLERR) {
+			LOG_DBG("Socket error: POLLERR");
+			LOG_DBG("Cloud connection was unexpectedly closed.");
+			cloud_evt.data.err =
+				CLOUD_DISCONNECT_ERR_MISC;
+			break;
+		}
+	}
+
+	cloud_notify_event(nrf_cloud_backend, &cloud_evt, NULL);
+	nrf_cloud_disconnect();
+
+reset:
+	atomic_set(&connection_poll_active, 0);
+	k_sem_take(&connection_poll_sem, K_NO_WAIT);
+	goto start;
+}
+
+K_THREAD_DEFINE(connection_poll_thread, 1500,
+		connection_poll, NULL, NULL, NULL,
+		K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
+
 static const struct cloud_api nrf_cloud_api = {
-	.init = init,
-	.uninit = uninit,
-	.connect = connect,
-	.disconnect = disconnect,
-	.send = send,
-	.ping = ping,
-	.keepalive_time_left = keepalive_time_left,
-	.input = input,
-	.user_data_set = user_data_set
+	.init = api_init,
+	.uninit = api_uninit,
+	.connect = api_connect,
+	.disconnect = api_disconnect,
+	.send = api_send,
+	.ping = api_ping,
+	.keepalive_time_left = api_keepalive_time_left,
+	.input = api_input,
+	.user_data_set = api_user_data_set
 };
 
 CLOUD_BACKEND_DEFINE(NRF_CLOUD, nrf_cloud_api);

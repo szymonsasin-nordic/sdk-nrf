@@ -80,6 +80,12 @@ int fota_download_init(fota_download_callback_t client_callback);
  */
 int fota_download_start(const char *host, const char *file);
 
+
+
+
+int set_peripheral_update();
+
+
 #ifdef __cplusplus
 }
 #endif

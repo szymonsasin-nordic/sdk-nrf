@@ -1,0 +1,11 @@
+identifier: nrf9160_aprgwns
+name: nRF9160-APRGW-Non-Secure
+type: mcu
+arch: arm
+toolchain:
+  - gnuarmemb
+  - zephyr
+ram: 128
+flash: 256
+supported:
+  - i2c

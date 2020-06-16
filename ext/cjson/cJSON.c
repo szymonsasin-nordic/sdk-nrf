@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
+#include <zephyr.h>
 
 #ifdef ENABLE_LOCALES
 #include <locale.h>
@@ -427,7 +428,7 @@ static unsigned char* ensure(printbuffer * const p, size_t needed)
     }
     else
     {
-        newsize = needed * 2;
+        newsize = needed + 1;
     }
 
     if (p->hooks.reallocate != NULL)
@@ -715,6 +716,8 @@ static cJSON_bool parse_string(cJSON * const item, parse_buffer * const input_bu
     /* not a string */
     if (buffer_at_offset(input_buffer)[0] != '\"')
     {
+
+        printk("***cJSON Parse String: not a string.\n");
         goto fail;
     }
 
@@ -739,6 +742,7 @@ static cJSON_bool parse_string(cJSON * const item, parse_buffer * const input_bu
         }
         if (((size_t)(input_end - input_buffer->content) >= input_buffer->length) || (*input_end != '\"'))
         {
+            printk("***cJSON Parse String: string ended unexpectedly.\n");
             goto fail; /* string ended unexpectedly */
         }
 
@@ -747,6 +751,7 @@ static cJSON_bool parse_string(cJSON * const item, parse_buffer * const input_bu
         output = (unsigned char*)input_buffer->hooks.allocate(allocation_length + sizeof(""));
         if (output == NULL)
         {
+            printk("***cJSON Parse String: allocation failure.\n");
             goto fail; /* allocation failure */
         }
     }
@@ -829,6 +834,8 @@ fail:
     {
         input_buffer->offset = (size_t)(input_pointer - input_buffer->content);
     }
+
+    printk("***cJSON Parse String failed.\n");
 
     return false;
 }
@@ -1030,12 +1037,14 @@ CJSON_PUBLIC(cJSON *) cJSON_ParseWithOpts(const char *value, const char **return
     item = cJSON_New_Item(&global_hooks);
     if (item == NULL) /* memory fail */
     {
+        printk("***cJSON No Room for New Item.\n");
         goto fail;
     }
 
     if (!parse_value(item, buffer_skip_whitespace(skip_utf8_bom(&buffer))))
     {
         /* parse failure. ep is set. */
+        printk("***cJSON parse value failed.\n");
         goto fail;
     }
 
@@ -1146,6 +1155,9 @@ static unsigned char *print(const cJSON * const item, cJSON_bool format, const i
     return printed;
 
 fail:
+
+    printk("***cJSON No Room to allocate.\n");
+
     if (buffer->buffer != NULL)
     {
         hooks->deallocate(buffer->buffer);
@@ -1224,6 +1236,7 @@ static cJSON_bool parse_value(cJSON * const item, parse_buffer * const input_buf
 {
     if ((input_buffer == NULL) || (input_buffer->content == NULL))
     {
+        printk("***cJSON Parse Value no input.\n");
         return false; /* no input */
     }
 
@@ -1270,6 +1283,10 @@ static cJSON_bool parse_value(cJSON * const item, parse_buffer * const input_buf
     {
         return parse_object(item, input_buffer);
     }
+
+
+    printk("***cJSON Parse Value returned false.\n");
+
 
     return false;
 }

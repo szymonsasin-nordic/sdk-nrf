@@ -5,3 +5,4 @@
 #
 
 rsource "ppi_trace/Kconfig"
+rsource "stack_size_analyzer/Kconfig"
