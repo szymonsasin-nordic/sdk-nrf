@@ -116,7 +116,7 @@ static int init(struct device *dev)
 	 * the GPIO reset pin, so that we are connected to
 	 * the nRF9160 before enabling our interrupt.
 	 */
-	//if (IS_ENABLED(CONFIG_BOARD_PCA20035_NRF52840_RESET)) {
+	//if (IS_ENABLED(CONFIG_BOARD_APRGW_NRF52840_RESET)) {
 		rc = reset_pin_configure(p0, p1);
 		if (rc) {
 			LOG_ERR("Unable to configure reset pin, err %d", rc);

@@ -4,10 +4,10 @@
 #
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 
-if BOARD_NRF52840_PCA20035
+if BOARD_NRF52840_APRGW
 
 config BOARD
-	default "nrf52840_pca20035"
+	default "nrf52840_aprgw"
 
 config BT_CTLR
 	default BT
@@ -22,4 +22,4 @@ config USB_DEVICE_STACK
 
 endif # USB
 
-endif # BOARD_NRF52840_PCA20035
+endif # BOARD_NRF52840_APRGW

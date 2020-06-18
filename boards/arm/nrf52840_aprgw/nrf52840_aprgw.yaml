@@ -1,5 +1,5 @@
-identifier: nrf52840_pca20035
-name: nRF52840-PCA20035
+identifier: nrf52840_aprgw
+name: nRF52840-APRGW
 type: mcu
 arch: arm
 toolchain:
