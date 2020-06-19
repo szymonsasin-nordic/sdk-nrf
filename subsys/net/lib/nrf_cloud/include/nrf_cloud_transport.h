@@ -47,6 +47,11 @@ struct nct_cc_data {
 	enum nct_cc_opcode opcode;
 };
 
+struct nct_gw_data {
+	struct nrf_cloud_data data;
+	u32_t id;
+};
+
 struct nct_evt {
 	s32_t status;
 	union {
@@ -125,6 +130,15 @@ int nct_input(const struct nct_evt *evt);
 
 /**@brief Signal to apply FOTA update. */
 void nct_apply_update(void);
+
+
+#ifdef CONFIG_APR_GATEWAY
+void g2c_send(char* buffer);
+void shadow_publish(char* buffer);
+void nct_gw_subscribe(char* c2g_topic_str);
+void set_gw_rx_topic(char* topic_prefix);
+void set_gw_tx_topic(char* topic_prefix);
+#endif
 
 #ifdef __cplusplus
 }
