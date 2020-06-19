@@ -20,6 +20,10 @@ manifest:
     # NCS repositories are hosted here.
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: nrfcloud
+      url-base: https://github.com/nRFCloud
+    - name: origin
+      url-base: https://github.com/plskeggs
     # Third-party repository sources:
     - name: zephyrproject
       url-base: https://github.com/zephyrproject-rtos
@@ -51,8 +55,13 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/introduction/index.html
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
+    # remote: nrfcloud
+      remote: origin
+      revision: feature-debug-improvements
       repo-path: sdk-zephyr
-      revision: a2d2a5e169f7aec8d9de16787af99e59c56c09b7
+      #revision: a2d2a5e169f7aec8d9de16787af99e59c56c09b7
+      #revision: 4ce908a2342494c19df09f347ce79ab81b415185
+      #revision: v2.4.99-ncs1
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -95,6 +104,7 @@ manifest:
     - name: mcuboot
       repo-path: sdk-mcuboot
       revision: v1.7.99-ncs1
+      remote: ncs
       path: bootloader/mcuboot
     - name: nrfxlib
       repo-path: sdk-nrfxlib
@@ -119,6 +129,10 @@ manifest:
           path: third_party/nlassert/repo
         - name: pigweed
           path: third_party/pigweed/repo
+    #  revision: feature-large-block-fix
+    # remote: origin
+
+      remote: ncs
     # Other third-party repositories.
     - name: cmock
       path: test/cmock
