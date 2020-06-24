@@ -184,6 +184,9 @@ static struct bt_gatt_dm_attr *attr_store(struct bt_gatt_dm *dm,
 
 	memcpy(cur_attr->uuid, attr->uuid, uuid_size);
 
+#ifdef CONFIG_APR_GATEWAY
+	cur_attr->user_data = attr->user_data;
+#endif
 	return cur_attr;
 }
 
