@@ -216,7 +216,6 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	cJSON *pairing_state_obj;
 	cJSON *topic_prefix_obj;
 	cJSON *state_obj;
-	cJSON *type_obj;
 
     #ifdef CONFIG_APR_GATEWAY
 	cJSON *desired_connections_obj;

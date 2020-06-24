@@ -131,6 +131,15 @@ int nct_input(const struct nct_evt *evt);
 /**@brief Signal to apply FOTA update. */
 void nct_apply_update(void);
 
+
+#ifdef CONFIG_APR_GATEWAY 
+void g2c_send(char* buffer);
+void shadow_publish(char* buffer);
+void nct_gw_subscribe(char* c2g_topic_str);
+void set_gw_rx_topic(char* topic_prefix);
+void set_gw_tx_topic(char* topic_prefix);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

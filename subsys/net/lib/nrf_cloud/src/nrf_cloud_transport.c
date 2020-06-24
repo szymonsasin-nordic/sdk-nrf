@@ -45,6 +45,7 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #endif
 
 #ifdef CONFIG_APR_GATEWAY
+#undef NRF_CLOUD_CLIENT_ID_LEN
 #define NRF_CLOUD_CLIENT_ID_LEN  10
 #define At_CMNG_READ_LEN 97
 #endif
@@ -301,14 +302,12 @@ void g2c_send(char* buffer)
 
 void nct_gw_subscribe(char* c2g_topic_str)
 {
-   struct mqtt_topic c2g_topic[] = {
-	{
-		.topic = {
-			.utf8 = c2g_topic_str,
-			.size = nct_c2g_topic_len-1
-		},
-		.qos = MQTT_QOS_1_AT_LEAST_ONCE
-	}
+   struct mqtt_topic c2g_topic = {
+	.topic = {
+		.utf8 = c2g_topic_str,
+		.size = nct_c2g_topic_len-1
+	},
+	.qos = MQTT_QOS_1_AT_LEAST_ONCE
   };
 
   LOG_DBG("nct_gw_connect");
@@ -319,7 +318,7 @@ void nct_gw_subscribe(char* c2g_topic_str)
           .message_id = NCT_CC_SUBSCRIBE_ID
   };
 
-  return mqtt_subscribe(&nct.client, &subscription_list);
+  mqtt_subscribe(&nct.client, &subscription_list);
 
 }
 
@@ -404,9 +403,12 @@ static int nct_client_id_get(char *id)
 	int at_socket_fd;
 	int bytes_written;
 	int bytes_read;
+#ifndef CONFIG_APR_GATEWAY
 	char imei_buf[NRF_IMEI_LEN + 1];
+#else
+        char err_msg[6];
         char psk_buf[100];
-        char err_msg[5];
+#endif
 	int ret;
 
 	at_socket_fd = nrf_socket(NRF_AF_LTE, NRF_SOCK_DGRAM, NRF_PROTO_AT);
@@ -821,10 +823,13 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	struct nct_dc_data dc;
 	bool event_notify = false;
 
-	#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_APR_GATEWAY
+	/* PETE: resolve this in a better way, like by passing handler in
+	   through a structure element */
+	extern u8_t gateway_handler(const struct nct_gw_data *gw_data);
 	struct nct_gw_data gw;
-    bool gateway_notify = false;
-	#endif
+	bool gateway_notify = false;
+#endif
 
 #if defined(CONFIG_AWS_FOTA)
 	err = aws_fota_mqtt_evt_handler(mqtt_client, _mqtt_evt);
@@ -968,10 +973,10 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
                
 	#ifdef CONFIG_APR_GATEWAY
 	else if (gateway_notify) {
-			err = gateway_handler(&gw);
-			if (err != 0) {
-					LOG_ERR("nct_input: failed %d", err);
-			}
+		err = gateway_handler(&gw);
+		if (err != 0) {
+				LOG_ERR("nct_input: failed %d", err);
+		}
 	}
 	#endif
 }
