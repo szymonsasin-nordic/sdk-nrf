@@ -41,9 +41,6 @@ struct bt_gatt_dm_attr {
 	u16_t		handle;
 	/** Attribute permissions */
 	u8_t		perm;
-#ifdef CONFIG_APR_GATEWAY
-	void		*user_data;
-#endif
 };
 
 /** @brief Discovery callback structure.
