@@ -49,7 +49,7 @@ manifest:
     - name: zephyr
       remote: origin
       repo-path: sdk-zephyr
-      revision: a24edd1bcd8f5ba58ef27058f8d7017a5695f902
+      revision: feature-fix-nrfx-uarte-timeout
       # v2.3.0-rc1-ncs1
       import:
         # In addition to the zephyr repository itself, NCS also
