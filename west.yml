@@ -120,7 +120,6 @@ manifest:
   # West-related configuration for the nrf repository.
   self:
     # This repository should be cloned to ncs/nrf.
-    remote: origin
     path: nrf
     # This line configures west extensions which are currently only
     # for internal use by NCS maintainers.
