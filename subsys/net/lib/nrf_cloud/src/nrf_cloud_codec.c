@@ -217,12 +217,12 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	cJSON *topic_prefix_obj;
 	cJSON *state_obj;
 
-    #ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_APR_GATEWAY
 	cJSON *desired_connections_obj;
 	cJSON *address_obj;
 	cJSON *ble_address;
 	cJSON *ble_address_type;
-	#endif
+#endif
 
 	root_obj = cJSON_Parse(input->ptr);
 	if (root_obj == NULL) {
@@ -234,12 +234,13 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 
 	state_obj = json_object_decode(root_obj, "state");
 	if (state_obj == NULL) {
-		
-	}
-         
-    #ifdef CONFIG_APR_GATEWAY
-	else {
 
+	}
+
+#ifdef CONFIG_APR_GATEWAY
+	else {
+		LOG_DBG("gateway state change detected: %s",
+			log_strdup(input->ptr));
 		desired_connections_obj = json_object_decode(state_obj, "desiredConnections");
 
 		if(desired_connections_obj != NULL)
@@ -264,17 +265,17 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 			ble_conn_mgr_update_connections();
 		}
 	}
-    #endif
+#endif
 
 	nrf_cloud_decode_desired_obj(root_obj, &desired_obj);
 
 	topic_prefix_obj = json_object_decode(desired_obj, "nrfcloud_mqtt_topic_prefix");
 	if (topic_prefix_obj != NULL) {
 
-    	#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_APR_GATEWAY
 		set_gw_rx_topic(topic_prefix_obj->valuestring);
 		set_gw_tx_topic(topic_prefix_obj->valuestring);
-		#endif
+#endif
 		(*requested_state) = STATE_UA_PIN_COMPLETE;
 		cJSON_Delete(root_obj);
 		return 0;

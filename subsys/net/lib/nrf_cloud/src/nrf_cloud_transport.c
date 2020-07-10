@@ -1099,6 +1099,14 @@ int nct_cc_connect(void)
 		.message_id = NCT_CC_SUBSCRIBE_ID
 	};
 
+	int i;
+
+	LOG_DBG("subscribing to:");
+	for (i = 0; i < subscription_list.list_count; i++) {
+		LOG_DBG("%d: %s", i + 1,
+			log_strdup(subscription_list.list[i].topic.utf8));
+	}
+
 	return mqtt_subscribe(&nct.client, &subscription_list);
 }
 
@@ -1243,6 +1251,14 @@ int nct_dc_connect(void)
 		.list_count = 1,
 		.message_id = NCT_DC_SUBSCRIBE_ID
 	};
+
+	int i;
+
+	LOG_DBG("subscribing to:");
+	for (i = 0; i < subscription_list.list_count; i++) {
+		LOG_DBG("%d: %s", i + 1,
+			log_strdup(subscription_list.list[i].topic.utf8));
+	}
 
 	return mqtt_subscribe(&nct.client, &subscription_list);
 }
