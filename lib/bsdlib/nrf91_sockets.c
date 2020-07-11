@@ -22,6 +22,9 @@
 #include <sys/fdtable.h>
 #include <zephyr.h>
 
+#include <logging/log.h>
+LOG_MODULE_REGISTER(nrf91_sockets, CONFIG_BSDLIB_LOG_LEVEL);
+
 #if defined(CONFIG_NET_SOCKETS_OFFLOAD)
 
 #if defined(CONFIG_NRF91_SOCKET_ENABLE_DEBUG_LOGS)
@@ -37,6 +40,8 @@
 #define OBJ_TO_SD(obj) (((int)obj) - 1)
 
 static const struct socket_op_vtable nrf91_socket_fd_op_vtable;
+
+static bool socket_is_tls[CONFIG_POSIX_MAX_FDS];
 
 static void z_to_nrf_ipv4(const struct sockaddr *z_in,
 			  struct nrf_sockaddr_in *nrf_out)
@@ -496,6 +501,15 @@ static int nrf91_socket_offload_socket(int family, int type, int proto)
 
 	retval = nrf_socket(family, type, proto);
 
+	if ((proto == NRF_SPROTO_TLS1v2) && (retval >= 0)) {
+		if (retval < CONFIG_POSIX_MAX_FDS) {
+			socket_is_tls[retval] = true;
+			LOG_INF("nrf_socket() TLS: %d", retval);
+		} else {
+			LOG_ERR("nrf_socket(): %d", retval);
+		}
+	}
+
 	return retval;
 }
 
@@ -759,31 +773,53 @@ static ssize_t nrf91_socket_offload_sendto(void *obj, const void *buf,
 {
 	int sd = OBJ_TO_SD(obj);
 	ssize_t retval;
+	size_t rem_len = len;
+	u8_t *cur_buf = (u8_t *)buf;
 
-	if (IS_ENABLED(CONFIG_NRF91_SOCKET_SEND_SPLIT_LARGE_BLOCKS)) {
-		len = MIN(len, CONFIG_NRF91_SOCKET_BLOCK_LIMIT);
-	}
+	do
+	{
+		if (IS_ENABLED(CONFIG_NRF91_SOCKET_SEND_SPLIT_LARGE_BLOCKS)) {
+			if ((sd < CONFIG_POSIX_MAX_FDS) && socket_is_tls[sd]) {
+				len = MIN(rem_len,
+					  CONFIG_NRF91_SOCKET_BLOCK_LIMIT);
+				if (len < rem_len) {
+					LOG_INF("Truncate large TLS packet:"
+						" %zu to %zu",
+						rem_len, len);
+				}
+			}
+		}
 
-	if (to == NULL) {
-		retval = nrf_sendto(sd, buf, len, z_to_nrf_flags(flags), NULL,
-				    0);
-	} else if (to->sa_family == AF_INET) {
-		struct nrf_sockaddr_in ipv4;
-		nrf_socklen_t sock_len = sizeof(struct nrf_sockaddr_in);
+		if (to == NULL) {
+			retval = nrf_sendto(sd, cur_buf, len,
+					    z_to_nrf_flags(flags), NULL, 0);
+		} else if (to->sa_family == AF_INET) {
+			struct nrf_sockaddr_in ipv4;
+			nrf_socklen_t sock_len = sizeof(struct nrf_sockaddr_in);
 
-		z_to_nrf_ipv4(to, &ipv4);
-		retval = nrf_sendto(sd, buf, len, z_to_nrf_flags(flags), &ipv4,
-				    sock_len);
-	} else if (to->sa_family == AF_INET6) {
-		struct nrf_sockaddr_in6 ipv6;
-		nrf_socklen_t sock_len = sizeof(struct nrf_sockaddr_in6);
+			z_to_nrf_ipv4(to, &ipv4);
+			retval = nrf_sendto(sd, cur_buf, len,
+					    z_to_nrf_flags(flags), &ipv4,
+					    sock_len);
+		} else if (to->sa_family == AF_INET6) {
+			struct nrf_sockaddr_in6 ipv6;
+			nrf_socklen_t sock_len =
+					        sizeof(struct nrf_sockaddr_in6);
 
-		z_to_nrf_ipv6(to, &ipv6);
-		retval = nrf_sendto(sd, buf, len, z_to_nrf_flags(flags), &ipv6,
-				    sock_len);
-	} else {
-		goto error;
-	}
+			z_to_nrf_ipv6(to, &ipv6);
+			retval = nrf_sendto(sd, cur_buf, len,
+					    z_to_nrf_flags(flags), &ipv6,
+					    sock_len);
+		} else {
+			goto error;
+		}
+
+		if (retval <= 0) {
+			break;
+		}
+		rem_len -= retval;
+		cur_buf += retval;
+	} while (rem_len);
 
 	return retval;
 
@@ -1154,6 +1190,7 @@ static int nrf91_socket_create(int family, int type, int proto)
 	z_finalize_fd(fd, SD_TO_OBJ(sd),
 		      (const struct fd_op_vtable *)&nrf91_socket_fd_op_vtable);
 
+	LOG_INF("fd %d, sd %d", fd, sd);
 	return fd;
 }
 
