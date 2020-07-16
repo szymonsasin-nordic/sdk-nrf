@@ -875,7 +875,7 @@ static ssize_t nrf91_socket_offload_sendmsg(void *obj, const struct msghdr *msg,
 	 */
 
 	len = 0;
-
+	LOG_INF("sending msg in %zu parts", msg->msg_iovlen);
 	for (i = 0; i < msg->msg_iovlen; i++) {
 		if (msg->msg_iov[i].iov_len == 0) {
 			continue;
