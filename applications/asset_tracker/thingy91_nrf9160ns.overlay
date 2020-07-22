@@ -1,0 +1,8 @@
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	tx-pin = <18>;
+	rx-pin = <19>;
+	rts-pin = <20>;
+	cts-pin = <21>;
+};
+
