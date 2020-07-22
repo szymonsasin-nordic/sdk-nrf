@@ -1739,9 +1739,21 @@ void handle_bsdlib_init_ret(void)
 	#endif /* CONFIG_BSD_LIBRARY */
 }
 
+
+#define UART0 DT_NODELABEL(uart0)
+#define UART0_TX DT_PROP(UART0, tx_pin)
+#define UART0_RX DT_PROP(UART0, rx_pin)
+#define UART0_RTS DT_PROP(UART0, rts_pin)
+#define UART0_CTS DT_PROP(UART0, cts_pin)
+#define UART0_SPEED DT_PROP(UART0, current_speed)
+
 void main(void)
 {
 	LOG_INF("Asset tracker started");
+
+	LOG_INF("UART0 tx:%d, rx:%d, rts:%d, cts:%d, speed:%d",
+	     UART0_TX, UART0_RX, UART0_RTS, UART0_CTS, UART0_SPEED);
+
 	k_work_q_start(&application_work_q, application_stack_area,
 		       K_THREAD_STACK_SIZEOF(application_stack_area),
 		       CONFIG_APPLICATION_WORKQUEUE_PRIORITY);
