@@ -34,6 +34,9 @@
 #include <dfu/mcuboot.h>
 #endif
 
+#include <hal/nrf_uarte.h>
+#include <hal/nrf_gpio.h>
+
 #include "cloud_codec.h"
 #include "env_sensors.h"
 #include "motion.h"
@@ -1749,10 +1752,20 @@ void handle_bsdlib_init_ret(void)
 
 void main(void)
 {
-	LOG_INF("Asset tracker started");
+#if 0
+	/* code to reinitialize pins */
+	nrf_uarte_disable(NRF_UARTE0_NS);
+	nrf_gpio_pin_write(UART0_TX, 1);
+	nrf_gpio_cfg_output(UART0_TX);
+	nrf_uarte_txrx_pins_set(NRF_UARTE0_NS, UART0_TX, UART0_RX);
+	nrf_gpio_pin_write(UART0_RTS, 1);
+	nrf_gpio_cfg_output(UART0_RTS);
+	nrf_gpio_cfg_input(UART0_CTS, NRF_GPIO_PIN_NOPULL);
+	nrf_uarte_hwfc_pins_set(NRF_UARTE0_NS, UART0_RTS, UART0_CTS);
+	nrf_uarte_enable(NRF_UARTE0_NS);
+#endif
 
-	LOG_INF("UART0 tx:%d, rx:%d, rts:%d, cts:%d, speed:%d",
-	     UART0_TX, UART0_RX, UART0_RTS, UART0_CTS, UART0_SPEED);
+	LOG_INF("Asset tracker started");
 
 	k_work_q_start(&application_work_q, application_stack_area,
 		       K_THREAD_STACK_SIZEOF(application_stack_area),
@@ -1785,6 +1798,8 @@ void main(void)
 	LOG_INF("Waiting for LWM2M carrier to complete initialization...");
 	k_sem_take(&cloud_ready_to_connect, K_FOREVER);
 #endif
+	LOG_INF("UART0 tx:%d, rx:%d, rts:%d, cts:%d, speed:%d",
+	     UART0_TX, UART0_RX, UART0_RTS, UART0_CTS, UART0_SPEED);
 
 	connect_to_cloud(0);
 }
