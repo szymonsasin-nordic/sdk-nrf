@@ -22,6 +22,10 @@ manifest:
     # NCS repositories are hosted here.
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: nrfcloud
+      url-base: https://github.com/nRFCloud
+    - name: origin
+      url-base: https://github.com/plskeggs
     # Third-party repository sources:
     - name: zephyrproject
       url-base: https://github.com/zephyrproject-rtos
@@ -49,6 +53,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/introduction/index.html
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
+      remote: nrfcloud
       repo-path: sdk-zephyr
       revision: v2.4.0-ncs1
       import:
@@ -93,15 +98,18 @@ manifest:
     - name: mcuboot
       repo-path: sdk-mcuboot
       revision: v1.6.99-ncs1
+      remote: ncs
       path: bootloader/mcuboot
     - name: mcumgr
       repo-path: sdk-mcumgr
       revision: v0.1.0-ncs1
+      remote: ncs
       path: modules/lib/mcumgr
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
       revision: v1.4.0
+      remote: ncs
     # Other third-party repositories.
     - name: cmock
       path: test/cmock
