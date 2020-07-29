@@ -24,6 +24,8 @@ manifest:
       url-base: https://github.com/nrfconnect
     - name: nrfcloud
       url-base: https://github.com/nRFCloud
+    - name: origin
+      url-base: https://github.com/plskeggs
     # Third-party repository sources:
     - name: zephyrproject
       url-base: https://github.com/zephyrproject-rtos
@@ -51,9 +53,11 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/introduction/index.html
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
-      remote: nrfcloud
+    # remote: nrfcloud
+      remote: origin
+      revision: feature-debug-improvements
       repo-path: sdk-zephyr
-      revision: v2.4.0-ncs1
+    # revision: v2.4.0-ncs1
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -106,8 +110,10 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: v1.4.0
-      remote: ncs
+      revision: feature-large-block-fix
+      remote: origin
+    # revision: v1.4.0
+    # remote: ncs
     # Other third-party repositories.
     - name: cmock
       path: test/cmock
