@@ -182,7 +182,8 @@ menu "ZBOSS osif configuration"
 menuconfig ZIGBEE_HAVE_SERIAL
 	bool "UART serial abstract for ZBOSS OSIF"
 	select SERIAL
-	select UART_ASYNC_API
+	select UART_INTERRUPT_DRIVEN
+	select RING_BUFFER
 
 if ZIGBEE_HAVE_SERIAL
 
@@ -194,19 +195,44 @@ config ZIGBEE_UART_TX_TIMEOUT
 	int "Timeout value for starting asynchronous transmission, in milliseconds"
 	default 10
 
+config ZIGBEE_UART_PARTIAL_TX_TIMEOUT
+	int "Timeout value between the last transmitted byte and the TX ready event if only a part of TX buffer was transmitted, in milliseconds"
+	default 10
+
 config ZIGBEE_UART_RX_TIMEOUT
 	int "Timeout value for starting asynchronous reception, in milliseconds"
 	default 10
 
 config ZIGBEE_UART_PARTIAL_RX_TIMEOUT
-	int "Timeout value between the last received byte and the RX event if only a part of RX buffer was received, in milliseconds"
-	default 10
+       int "Timeout value between the last received byte and the RX event if only a part of RX buffer was received, in milliseconds"
+       default 10
+
+config ZIGBEE_UART_RX_BUF_LEN
+	int "Size of the asynchronous receive buffer"
+	default 16
 
 config ZIGBEE_UART_TX_BUF_LEN
 	int "Size of the synchronous transmit buffer"
 	default 128
 
 endif #ZIGBEE_HAVE_SERIAL
+
+
+config ZIGBEE_USE_LEDS
+	bool "LEDs abstract for ZBOSS OSIF"
+	imply GPIO
+	imply DK_LIBRARY
+
+config ZIGBEE_USE_DIMMABLE_LED
+	bool "Dimmable LED (PWM) abstract for ZBOSS OSIF"
+	imply GPIO
+	imply PWM
+
+config ZIGBEE_USE_BUTTONS
+	bool "Buttons abstract for ZBOSS OSIF"
+	imply GPIO
+	imply DK_LIBRARY
+
 
 menuconfig ZIGBEE_SHELL
 	bool "Enable Zigbee Shell"
