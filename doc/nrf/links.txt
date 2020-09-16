@@ -7,6 +7,8 @@
 .. _`official Zephyr repository`: https://github.com/zephyrproject-rtos/zephyr
 .. _`Zephyr repository`: https://github.com/zephyrproject-rtos/zephyr
 
+.. _`Zephyr Network APIs`: https://docs.zephyrproject.org/latest/reference/networking/apis.html
+
 .. ### Links to MCUboot
 
 .. _`MCUboot`: https://mcuboot.com
@@ -53,7 +55,7 @@
 
 .. _`nRF Connect Programmer`: https://infocenter.nordicsemi.com/topic/ug_nc_programmer/UG/nrf_connect_programmer/ncp_introduction.html
 
-.. _`Updating the nRF9160 DK cellular modem`: https://infocenter.nordicsemi.com/topic/ug_nc_programmer/UG/nrf_connect_programmer/ncp_updating_modem_nrf9160dk.html
+.. _`Updating the nRF9160 DK cellular modem`: https://infocenter.nordicsemi.com/topic/ug_nrf91_dk_gsg/UG/nrf91_DK_gsg/updating_modem_firmware.html
 
 .. _`nRF9160 DK board control section in the nRF9160 DK User Guide`: https://infocenter.nordicsemi.com/topic/ug_nrf91_dk/UG/nrf91_DK/board_controller.html
 
@@ -431,6 +433,8 @@
 .. _`tutorial on SSL.com`: https://support.ssl.com/Knowledgebase/Article/View/19/0/der-vs-crt-vs-cer-vs-pem-certificates-and-how-to-convert-them
 
 .. _`RFC959 File Transfer Protocol (FTP)`: https://tools.ietf.org/html/rfc959
+
+.. _`RFC1055 Serial Line Internet Protocol (SLIP)`: https://tools.ietf.org/html/rfc1055
 
 .. _`Windows Python Path`: https://docs.python.org/3/using/windows.html#finding-the-python-executable
 
