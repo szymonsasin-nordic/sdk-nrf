@@ -22,7 +22,7 @@ The script looks for nRF Desktop devices connected to the host through USB, Blue
 The devices are identified based on Vendor ID.
 
 The script exchanges data with the device using :ref:`nrf_desktop_config_channel`.
-The data is sent using a HID feature reports and targets a specific FW module of the nRF Desktop application.
+The data is sent using HID feature reports and targets a specific FW module of the nRF Desktop application.
 
 For more information about the architecture of the nRF Desktop configuration channel, see :ref:`nrf_desktop_config_channel`.
 The configuration channel uses a cross-platform HIDAPI library to communicate with HID devices attached to the operating system.
@@ -46,17 +46,17 @@ Complete the following steps:
    Use the bundled DLL or build it according to instructions in `HIDAPI library`_.
 #. Install `pyhidapi Python wrapper`_ and other required libraries with the following command:
 
-.. parsed-literal::
-   :class: highlight
+   .. parsed-literal::
+      :class: highlight
 
-   py -3 -m pip install -r requirements.txt
+      py -3 -m pip install -r requirements.txt
 
 #. If you want to display LED stream based on sound data, you must also install the additional requrements using the following command:
 
-.. parsed-literal::
-   :class: highlight
+   .. parsed-literal::
+      :class: highlight
 
-   py -3 -m pip install -r requirements_music_led_stream.txt
+      py -3 -m pip install -r requirements_music_led_stream.txt
 
 For more detailed information about LED stream functionality, see the `Playing LEDstream`_ section.
 
@@ -67,24 +67,24 @@ Complete the following steps:
 
 1. Run the following commands to install the basic requirements:
 
-.. parsed-literal::
-   :class: highlight
+   .. parsed-literal::
+      :class: highlight
 
-   sudo apt install libhidapi-hidraw0
-   pip3 install --user -r requirements.txt
+      sudo apt install libhidapi-hidraw0
+      pip3 install --user -r requirements.txt
 
-.. note::
-    When using the configuration channel for Bluetooth LE devices on Linux, use the BlueZ version 5.44 or higher.
-    In earlier versions, the HID device attached by BlueZ could obtain wrong VID and PID values (ignoring values in Device Information Service), which would stop HIDAPI from opening the device.
+   .. note::
+       When using the configuration channel for Bluetooth LE devices on Linux, use the BlueZ version 5.44 or higher.
+       In earlier versions, the HID device attached by BlueZ could obtain wrong VID and PID values (ignoring values in Device Information Service), which would stop HIDAPI from opening the device.
 
-    Additionally, to call the Python script on Linux without root rights, install the provided udev rule :file:`99-hid.rules` file by copying it to :file:`/etc/udev/rules.d` and replugging the device.
+   Additionally, to call the Python script on Linux without root rights, install the provided udev rule :file:`99-hid.rules` file by copying it to :file:`/etc/udev/rules.d` and replugging the device.
 
 #. If you want to display LED stream based on sound data, you must also install the additional requrements using the following command:
 
-.. parsed-literal::
-   :class: highlight
+   .. parsed-literal::
+      :class: highlight
 
-   pip3 install --user -r requirements_music_led_stream.txt
+      pip3 install --user -r requirements_music_led_stream.txt
 
 For more detailed information about LED stream functionality, see the `Playing LEDstream`_ section.
 
@@ -133,7 +133,7 @@ Configuring device runtime options
 ==================================
 
 The script can pass the configuration values to the linked FW module using the ``config`` command.
-Use the following syntax to display list of configurable modules:
+Use the following syntax to display list of modules that can have device runtime options configured:
 
 .. parsed-literal::
     :class: highlight
@@ -143,6 +143,20 @@ Use the following syntax to display list of configurable modules:
 .. note::
   The list contains all the configurable modules used by nRF Desktop devices.
   Make sure that selected module and option combination is supported by the configured device using ``show`` command.
+
+Use the following syntax to display list of options for the given module that can have device runtime options configured:
+
+.. parsed-literal::
+    :class: highlight
+
+    python3 configurator_cli.py DEVICE config MODULE_NAME -h
+
+.. tip::
+  The available configurable modules and options are defined by the :file:`nrf/scripts/hid_configurator/modules/module_config.py` file.
+
+  You can add another configurable module to the file.
+  Use the existing modules as examples.
+  Make sure to also add the application firmware module as a :ref:`nrf_desktop_config_channel` listener, as described on the configuration channel page.
 
 Customize the command with the following variables:
 
@@ -164,6 +178,13 @@ To write a new value for the selected option, pass the value as the fifth argume
 
     python3 configurator_cli.py DEVICE config MODULE_NAME OPTION_NAME VALUE
 
+.. important::
+   If the module that is a configuration channel listener specifies its variant, you must refer to the module using the following syntax: ``module_name/variant``.
+   For example, the :ref:`nrf_desktop_motion` variant that depends on the motion sensor model will require the following naming convention:
+
+   * ``motion/paw3212``
+   * ``motion/pmw3360``
+
 Performing DFU
 ==============
 
@@ -175,6 +196,7 @@ When the whole image is transmitted, the update process is completed during the 
 If the DFU process is interrupted, it can be resumed using the same image, unless the device restarts.
 After the device reboots, the process always starts from the beginning.
 For more information, see nRF Desktop's :ref:`nrf_desktop_dfu`.
+The DFU functionality on the host computer is implemented in the :file:`nrf/scripts/hid_configurator/modules/dfu.py` file.
 
 The ``dfu`` command will read the version of the firmware running on the device and compare it with the firmware version in the update image at the provided path.
 If the process is to be continued, the script will upload the image data to the device.
@@ -225,6 +247,10 @@ Playing LEDstream
 
 The LEDstream is a feature of nRF Desktop that allows you to send a stream of color data to be replayed on the device LED.
 For more information about its implementation, see nRF Desktop's :ref:`nrf_desktop_led_stream`.
+The LEDstream functionality on the host computer is implemented by the following files:
+
+* :file:`nrf/scripts/hid_configurator/modules/led_stream.py`
+* :file:`nrf/scripts/hid_configurator/modules/music_led_stream.py`.
 
 HID configurator's ``led_stream`` command will start the LEDstream playback on the device.
 

@@ -252,9 +252,6 @@ static int zigbee_init(struct device *unused)
 {
 	ARG_UNUSED(unused);
 
-	zb_ieee_addr_t ieee_addr;
-	zb_uint32_t channel_mask;
-
 	/* Initialise work queue for processing app callback and alarms. */
 	k_work_init(&zb_app_cb_work, zb_app_cb_process_schedule);
 
@@ -265,10 +262,12 @@ static int zigbee_init(struct device *unused)
 	ZB_SET_TRAF_DUMP_OFF();
 #endif /* ZB_TRACE_LEVEL */
 
+#ifndef CONFIG_ZB_TEST_MODE
 	/* Initialize Zigbee stack. */
 	ZB_INIT("zigbee_thread");
 
 	/* Set device address to the value read from FICR registers. */
+	zb_ieee_addr_t ieee_addr;
 	zb_osif_get_ieee_eui64(ieee_addr);
 	zb_set_long_address(ieee_addr);
 
@@ -281,9 +280,9 @@ static int zigbee_init(struct device *unused)
 	 * to create a new network
 	 */
 #if defined(CONFIG_ZIGBEE_CHANNEL_SELECTION_MODE_SINGLE)
-	channel_mask = (1UL << CONFIG_ZIGBEE_CHANNEL);
+	zb_uint32_t channel_mask = (1UL << CONFIG_ZIGBEE_CHANNEL);
 #elif defined(CONFIG_ZIGBEE_CHANNEL_SELECTION_MODE_MULTI)
-	channel_mask = CONFIG_ZIGBEE_CHANNEL_MASK;
+	zb_uint32_t channel_mask = CONFIG_ZIGBEE_CHANNEL_MASK;
 #else
 #error Channel mask undefined!
 #endif
@@ -297,6 +296,8 @@ static int zigbee_init(struct device *unused)
 #else
 #error Zigbee device role undefined!
 #endif
+
+#endif /* CONFIG_ZB_TEST_MODE */
 
 	return 0;
 }
@@ -495,16 +496,16 @@ void zb_reset(zb_uint8_t param)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
+zb_bool_t zb_osif_is_inside_isr(void)
+{
+	return (zb_bool_t)(__get_IPSR() != 0);
+}
+
 void zb_osif_enable_all_inter(void)
 {
 	__ASSERT(zb_osif_is_inside_isr() == 0,
 		 "Unable to unlock mutex from interrupt context");
 	k_mutex_unlock(&zigbee_mutex);
-}
-
-zb_bool_t zb_osif_is_inside_isr(void)
-{
-	return (zb_bool_t)(__get_IPSR() != 0);
 }
 
 void zb_osif_disable_all_inter(void)
