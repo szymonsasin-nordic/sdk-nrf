@@ -380,8 +380,8 @@ void set_gw_tx_topic(char* topic_prefix)
 }
 #endif
 
-static bool strings_compare(const char *s1, const char *s2, u32_t s1_len,
-			    u32_t s2_len)
+static bool strings_compare(const char *s1, const char *s2, uint32_t s1_len,
+			    uint32_t s2_len)
 {
 	return (strncmp(s1, s2, MIN(s1_len, s2_len))) ? false : true;
 }
@@ -958,7 +958,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	/* TODO: resolve this in a better way, like by passing handler in
 	 * through a structure element
 	 */
-	extern u8_t gateway_handler(const struct nct_gw_data *gw_data);
+	extern uint8_t gateway_handler(const struct nct_gw_data *gw_data);
 	struct nct_gw_data gw;
 	bool gateway_notify = false;
 #endif
