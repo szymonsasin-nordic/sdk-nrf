@@ -50,7 +50,7 @@ struct nct_cc_data {
 
 struct nct_gw_data {
 	struct nrf_cloud_data data;
-	u32_t id;
+	uint32_t id;
 };
 
 struct nct_evt {

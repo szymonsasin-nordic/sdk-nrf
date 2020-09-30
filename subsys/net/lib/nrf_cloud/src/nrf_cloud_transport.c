@@ -384,8 +384,8 @@ void set_gw_tx_topic(char* topic_prefix)
 }
 #endif
 
-static bool strings_compare(const char *s1, const char *s2, u32_t s1_len,
-			    u32_t s2_len)
+static bool strings_compare(const char *s1, const char *s2, uint32_t s1_len,
+			    uint32_t s2_len)
 {
 	return (strncmp(s1, s2, MIN(s1_len, s2_len))) ? false : true;
 }
@@ -895,10 +895,10 @@ int nct_mqtt_connect(const struct cloud_cfg *const cfg)
 			msg = &cfg->cfg.mqtt.epitath_msg;
 
 			if (msg->endpoint.type == CLOUD_EP_TOPIC_STATE) {
-				topic.topic.utf8 = (u8_t *)update_topic;
+				topic.topic.utf8 = (uint8_t *)update_topic;
 				topic.topic.size = NCT_UPDATE_TOPIC_LEN;
 			} else if (msg->endpoint.type == CLOUD_EP_TOPIC_WILL) {
-				topic.topic.utf8 = (u8_t *)will_topic;
+				topic.topic.utf8 = (uint8_t *)will_topic;
 				topic.topic.size = NCT_WILL_TOPIC_LEN;
 			} else if (msg->endpoint.type == CLOUD_EP_URI) {
 				topic.topic.utf8 = msg->endpoint.str;
@@ -914,7 +914,7 @@ int nct_mqtt_connect(const struct cloud_cfg *const cfg)
 			LOG_DBG("mqtt will topic set to %s, QoS=%u",
 				log_strdup(topic.topic.utf8), msg->qos);
 
-			will_message.utf8 = (u8_t *)msg->buf;
+			will_message.utf8 = (uint8_t *)msg->buf;
 			will_message.size = msg->len;
 			nct.client.will_message = &will_message;
 			LOG_DBG("mqtt will message set to %s",
@@ -996,7 +996,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	/* TODO: resolve this in a better way, like by passing handler in
 	 * through a structure element
 	 */
-	extern u8_t gateway_handler(const struct nct_gw_data *gw_data);
+	extern uint8_t gateway_handler(const struct nct_gw_data *gw_data);
 	struct nct_gw_data gw;
 	bool gateway_notify = false;
 #endif
