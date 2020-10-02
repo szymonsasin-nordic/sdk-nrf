@@ -130,6 +130,7 @@ static bool persistent_session;
 
 #define NCT_CC_SUBSCRIBE_ID 1234
 #define NCT_DC_SUBSCRIBE_ID 8765
+#define NCT_CG_SUBSCRIBE_ID 2525
 
 #define NCT_RX_LIST 0
 #define NCT_TX_LIST 1
@@ -309,7 +310,6 @@ void shadow_publish(char* buffer)
 	mqtt_publish(&nct.client, &publish);
 }
 
-
 void g2c_send(char* buffer)
 {
 	if (!nct_g2c_topic_len) {
@@ -328,26 +328,30 @@ void g2c_send(char* buffer)
 	mqtt_publish(&nct.client, &publish);
 }
 
-void nct_gw_subscribe(char* c2g_topic_str)
+int nct_gw_subscribe(char* c2g_topic_str)
 {
-   struct mqtt_topic c2g_topic = {
-	.topic = {
-		.utf8 = c2g_topic_str,
-		.size = nct_c2g_topic_len
-	},
-	.qos = MQTT_QOS_1_AT_LEAST_ONCE
-  };
+	struct mqtt_topic c2g_topic = {
+		.topic = {
+			.utf8 = c2g_topic_str,
+			.size = nct_c2g_topic_len
+		},
+		.qos = MQTT_QOS_1_AT_LEAST_ONCE
+	};
 
-  LOG_DBG("nct_gw_subscribe");
+	LOG_INF("nct_gw_subscribe");
 
-  const struct mqtt_subscription_list subscription_list = {
-	  .list = &c2g_topic,
-	  .list_count = 1,
-	  .message_id = NCT_CC_SUBSCRIBE_ID
-  };
+	const struct mqtt_subscription_list subscription_list = {
+		.list = &c2g_topic,
+		.list_count = 1,
+		.message_id = NCT_CG_SUBSCRIBE_ID
+	};
 
-  mqtt_subscribe(&nct.client, &subscription_list);
+	return mqtt_subscribe(&nct.client, &subscription_list);
+}
 
+int nct_gw_connect(void)
+{
+	return nct_gw_subscribe(nct_c2g_topic_buf);
 }
 
 void set_gw_rx_topic(char* topic_prefix)
@@ -358,7 +362,6 @@ void set_gw_rx_topic(char* topic_prefix)
 	if ((nct_c2g_topic_len > 0) && (nct_c2g_topic_len < MAX_GW_TOPIC_LEN)) {
 		LOG_INF("Gateway RX Topic: %s Len: %d", nct_c2g_topic_buf,
 			nct_c2g_topic_len);
-		nct_gw_subscribe(nct_c2g_topic_buf);
 	} else {
 		LOG_ERR("Gateway RX Topic not set");
 		nct_c2g_topic_len = 0;
@@ -1079,8 +1082,22 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 			if (err) {
 				LOG_ERR("Failed to save session state: %d",
 					err);
+			}
 		}
+#ifdef CONFIG_APR_GATEWAY
+		if (_mqtt_evt->param.suback.message_id == NCT_CG_SUBSCRIBE_ID) {
+			evt.type = NCT_EVT_DC_CONNECTED;
+			event_notify = true;
+
+			LOG_INF("Gateway connected; saving session state");
+			/* Subscribing complete, session is now valid */
+			err = save_session_state(1);
+			if (err) {
+				LOG_ERR("Failed to save session state: %d",
+					err);
+			}
 		}
+#endif
 		break;
 	}
 	case MQTT_EVT_UNSUBACK: {

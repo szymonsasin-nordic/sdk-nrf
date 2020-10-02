@@ -139,7 +139,8 @@ void nct_apply_update(void);
 #ifdef CONFIG_APR_GATEWAY
 void g2c_send(char* buffer);
 void shadow_publish(char* buffer);
-void nct_gw_subscribe(char* c2g_topic_str);
+int nct_gw_subscribe(char* c2g_topic_str);
+int nct_gw_connect(void);
 void set_gw_rx_topic(char* topic_prefix);
 void set_gw_tx_topic(char* topic_prefix);
 #endif
