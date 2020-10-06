@@ -18,6 +18,7 @@
 #include <sdc_hci.h>
 #include <sdc_hci_vs.h>
 #include "multithreading_lock.h"
+#include "hci_internal.h"
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME sdc_hci_driver
@@ -100,7 +101,7 @@ static int cmd_handle(struct net_buf *cmd)
 	int errcode = MULTITHREADING_LOCK_ACQUIRE();
 
 	if (!errcode) {
-		errcode = sdc_hci_cmd_put(cmd->data);
+		errcode = hci_internal_cmd_put(cmd->data);
 		MULTITHREADING_LOCK_RELEASE();
 	}
 	if (errcode) {
@@ -278,7 +279,7 @@ static bool fetch_and_process_hci_evt(uint8_t *p_hci_buffer)
 
 	errcode = MULTITHREADING_LOCK_ACQUIRE();
 	if (!errcode) {
-		errcode = sdc_hci_evt_get(p_hci_buffer);
+		errcode = hci_internal_evt_get(p_hci_buffer);
 		MULTITHREADING_LOCK_RELEASE();
 	}
 
@@ -327,7 +328,9 @@ static void recv_thread(void *p1, void *p2, void *p3)
 
 		received_evt = fetch_and_process_hci_evt(&hci_buffer[0]);
 
-		received_data = fetch_and_process_acl_data(&hci_buffer[0]);
+		if (IS_ENABLED(CONFIG_BT_CONN)) {
+			received_data = fetch_and_process_acl_data(&hci_buffer[0]);
+		}
 
 		/* Let other threads of same priority run in between. */
 		k_yield();
@@ -413,6 +416,34 @@ static int hci_driver_open(void)
 		k_panic();
 		/* No return from k_panic(). */
 		return -ENOMEM;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_BROADCASTER)) {
+		err = sdc_support_adv();
+		if (err) {
+			return -ENOTSUP;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_PERIPHERAL)) {
+		err = sdc_support_slave();
+		if (err) {
+			return -ENOTSUP;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_OBSERVER)) {
+		err = sdc_support_scan();
+		if (err) {
+			return -ENOTSUP;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
+		err = sdc_support_master();
+		if (err) {
+			return -ENOTSUP;
+		}
 	}
 
 	if (IS_ENABLED(CONFIG_BT_DATA_LEN_UPDATE)) {
@@ -504,7 +535,7 @@ void bt_ctlr_set_public_addr(const uint8_t *addr)
 	(void)sdc_hci_cmd_vs_zephyr_write_bd_addr(bd_addr);
 }
 
-static int hci_driver_init(struct device *unused)
+static int hci_driver_init(const struct device *unused)
 {
 	ARG_UNUSED(unused);
 	int err = 0;

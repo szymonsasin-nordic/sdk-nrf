@@ -622,6 +622,16 @@ static void pairing_complete(struct bt_conn *conn, bool bonded)
 static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
+	struct pairing_data_mitm pairing_data;
+
+	if (k_msgq_peek(&mitm_queue, &pairing_data) != 0) {
+		return;
+	}
+
+	if (pairing_data.conn == conn) {
+		bt_conn_unref(pairing_data.conn);
+		k_msgq_get(&mitm_queue, &pairing_data, K_NO_WAIT);
+	}
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
@@ -740,7 +750,7 @@ void configure_buttons(void)
 
 static void bas_notify(void)
 {
-	uint8_t battery_level = bt_gatt_bas_get_battery_level();
+	uint8_t battery_level = bt_bas_get_battery_level();
 
 	battery_level--;
 
@@ -748,7 +758,7 @@ static void bas_notify(void)
 		battery_level = 100U;
 	}
 
-	bt_gatt_bas_set_battery_level(battery_level);
+	bt_bas_set_battery_level(battery_level);
 }
 
 
