@@ -296,6 +296,8 @@ static uint32_t dc_send(const struct nct_dc_data *dc_data, uint8_t qos)
 }
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
+static char stage[8];
+
 void shadow_publish(char* buffer)
 {
 	struct mqtt_publish_param publish = {
@@ -310,10 +312,10 @@ void shadow_publish(char* buffer)
 	mqtt_publish(&nct.client, &publish);
 }
 
-void g2c_send(char* buffer)
+int g2c_send(char* buffer)
 {
 	if (!nct_g2c_topic_len) {
-		return;
+		return -EINVAL;
 	}
 
 	struct mqtt_publish_param publish = {
@@ -325,7 +327,7 @@ void g2c_send(char* buffer)
 		.message_id = dc_get_next_message_id()
 	};
 
-	mqtt_publish(&nct.client, &publish);
+	return  mqtt_publish(&nct.client, &publish);
 }
 
 int nct_gw_subscribe(char* c2g_topic_str)
@@ -354,14 +356,31 @@ int nct_gw_connect(void)
 	return nct_gw_subscribe(nct_c2g_topic_buf);
 }
 
+void nct_gw_get_stage(char *cur_stage, const int cur_stage_len)
+{
+	strncpy(cur_stage, stage, cur_stage_len);
+}
+
 void set_gw_rx_topic(char* topic_prefix)
 {
+	char *end_of_stage = strchr(topic_prefix, '/');
+	int len;
+
+	if (end_of_stage) {
+		len = end_of_stage - topic_prefix;
+		if (len >= sizeof(stage)) {
+			len = sizeof(stage) - 1;
+		}
+		memcpy(stage, topic_prefix, len);
+		stage[len] = '\0';
+	}
+
 	nct_c2g_topic_len = snprintf(nct_c2g_topic_buf, MAX_GW_TOPIC_LEN,
 				 "%sgateways/%s/c2g", topic_prefix, gateway_id);
 
 	if ((nct_c2g_topic_len > 0) && (nct_c2g_topic_len < MAX_GW_TOPIC_LEN)) {
-		LOG_INF("Gateway RX Topic: %s Len: %d", nct_c2g_topic_buf,
-			nct_c2g_topic_len);
+		LOG_INF("Gateway RX Topic: %s Len: %d",
+			log_strdup(nct_c2g_topic_buf), nct_c2g_topic_len);
 	} else {
 		LOG_ERR("Gateway RX Topic not set");
 		nct_c2g_topic_len = 0;
@@ -374,8 +393,8 @@ void set_gw_tx_topic(char* topic_prefix)
 				 "%sgateways/%s/g2c", topic_prefix, gateway_id);
 
 	if ((nct_g2c_topic_len > 0) && (nct_g2c_topic_len < MAX_GW_TOPIC_LEN)) {
-		LOG_INF("Gateway TX Topic: %s Len: %d", nct_g2c_topic_buf,
-			nct_g2c_topic_len);
+		LOG_INF("Gateway TX Topic: %s Len: %d",
+			log_strdup(nct_g2c_topic_buf), nct_g2c_topic_len);
 	} else {
 		LOG_ERR("Gateway TX Topic not set");
 		nct_g2c_topic_len = 0;
@@ -460,7 +479,7 @@ static void gw_client_id_get(int at_socket_fd, char *id, size_t id_len)
 		char *ptr = psk_buf;
 		const char *delimiters = ",";
 
-		LOG_DBG("ID is inside this: %s", psk_buf);
+		LOG_DBG("ID is inside this: %s", log_strdup(psk_buf));
 		for (i = 0; i < 3; i++) {
 			ofs = strcspn(ptr, delimiters) + 1;
 			ptr += ofs;
@@ -479,7 +498,7 @@ static void gw_client_id_get(int at_socket_fd, char *id, size_t id_len)
 			snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s",
 				 "no-psk-ids");
 		}
-		printk("Gateway ID:%s\n", gateway_id);
+		/* printk("Gateway ID:%s\n", gateway_id); */
 
 		snprintf(id, id_len, "%s", gateway_id);
 	}
@@ -523,7 +542,7 @@ int nct_client_id_get(char *id, size_t id_len)
 	memcpy(id, NRF_CLOUD_CLIENT_ID, id_len);
 #endif /* !defined(NRF_CLOUD_CLIENT_ID) */
 
-	LOG_INF("client_id = %s", log_strdup(id));
+	LOG_DBG("client_id = %s", log_strdup(id));
 
 	return 0;
 }
@@ -949,6 +968,8 @@ int nct_mqtt_connect(void)
 static int publish_get_payload(struct mqtt_client *client, size_t length)
 {
 	if (length > sizeof(nct.payload_buf)) {
+		LOG_WRN("length specified:%zd larger than payload_buf:%zd",
+			length, sizeof(nct.payload_buf));
 		return -EMSGSIZE;
 	}
 
