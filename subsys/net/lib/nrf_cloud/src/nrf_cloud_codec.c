@@ -211,7 +211,6 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 	cJSON *item;
 	cJSON *address_obj;
 	cJSON *ble_address;
-	cJSON *ble_address_type;
 	int ret = 0;
 
 	state_obj = json_object_decode(root_obj, "state");
@@ -231,17 +230,19 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 	for (int i = 0; i < cJSON_GetArraySize(desired_connections_obj); i++) {
 		item = cJSON_GetArrayItem(desired_connections_obj, i);
 		address_obj = cJSON_GetObjectItem(item, "address");
-		ble_address = cJSON_GetObjectItem(address_obj, "address");
-		ble_address_type = cJSON_GetObjectItem(address_obj, "type");
 
-		if ((ble_address != NULL) && (ble_address_type != NULL)) {
+		if (address_obj == NULL) {
+			ble_address = cJSON_GetObjectItem(item, "id");
+		} else {
+			ble_address = cJSON_GetObjectItem(address_obj,
+							  "address");
+		}
+
+		if (ble_address != NULL) {
 			LOG_DBG("Desired BLE address: %s",
 				ble_address->valuestring);
-			LOG_DBG("Desired BLE address type: %s",
-				ble_address_type->valuestring);
 
-			if (ble_conn_mgr_add_conn(ble_address->valuestring,
-			       ble_address_type->valuestring)) {
+			if (ble_conn_mgr_add_conn(ble_address->valuestring)) {
 				LOG_DBG("Conn already added");
 			}
 			ble_conn_mgr_update_desired(ble_address->valuestring,
@@ -305,11 +306,13 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	pairing_state_obj = json_object_decode(pairing_obj, "state");
 
 	if (!pairing_state_obj || pairing_state_obj->type != cJSON_String) {
+#ifndef CONFIG_APR_GATEWAY
 		if (cJSON_HasObjectItem(desired_obj, "config") == false) {
 			LOG_WRN("Unhandled data received from nRF Cloud.");
 			LOG_INF("Ensure device firmware is up to date.");
 			LOG_INF("Delete and re-add device to nRF Cloud if problem persists.");
 		}
+#endif
 		cJSON_Delete(root_obj);
 		return -ENOENT;
 	}
