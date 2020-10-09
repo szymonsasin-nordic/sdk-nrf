@@ -528,7 +528,7 @@ int download_client_init(struct download_client *const client,
 				K_THREAD_STACK_SIZEOF(client->thread_stack),
 				download_thread, client, NULL, NULL,
 				K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
-
+		k_thread_name_set(client->tid, "download_thread");
 	return 0;
 }
 
