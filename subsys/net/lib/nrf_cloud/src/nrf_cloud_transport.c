@@ -48,7 +48,7 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #ifdef CONFIG_APR_GATEWAY
 #undef NRF_CLOUD_CLIENT_ID_LEN
 #define NRF_CLOUD_CLIENT_ID_LEN  10
-#define At_CMNG_READ_LEN 97
+#define AT_CMNG_READ_LEN 97
 #endif
 
 #define NRF_CLOUD_HOSTNAME CONFIG_NRF_CLOUD_HOST_NAME
@@ -299,7 +299,7 @@ static uint32_t dc_send(const struct nct_dc_data *dc_data, uint8_t qos)
 void shadow_publish(char* buffer)
 {
 	struct mqtt_publish_param publish = {
-		.message.topic.qos = 1,
+		.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE,
 		.message.topic.topic.size = NCT_UPDATE_TOPIC_LEN,
 		.message.topic.topic.utf8 = update_topic,
 		.message.payload.data = buffer,
@@ -317,7 +317,7 @@ void g2c_send(char* buffer)
 	}
 
 	struct mqtt_publish_param publish = {
-		.message.topic.qos = 1,
+		.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE,
 		.message.topic.topic.size = nct_g2c_topic_len,
 		.message.topic.topic.utf8 = nct_g2c_topic_buf,
 		.message.payload.data = buffer,
@@ -431,32 +431,20 @@ static bool control_channel_topic_match(uint32_t list_id,
 	return false;
 }
 
-/* Function to get the client id */
-int nct_client_id_get(char *id, size_t id_len)
+#ifdef CONFIG_APR_GATEWAY
+static void gw_client_id_get(int at_socket_fd, char *id, size_t id_len)
 {
-#if !defined(NRF_CLOUD_CLIENT_ID)
-#if defined(CONFIG_BSD_LIBRARY)
-	int at_socket_fd;
+	char psk_buf[100];
 	int bytes_written;
 	int bytes_read;
-#ifndef CONFIG_APR_GATEWAY
-	char imei_buf[NRF_IMEI_LEN + 1];
-#else
-	char psk_buf[100];
-#endif
-	int ret;
 
-	at_socket_fd = nrf_socket(NRF_AF_LTE, NRF_SOCK_DGRAM, NRF_PROTO_AT);
-	__ASSERT_NO_MSG(at_socket_fd >= 0);
-
-#ifdef CONFIG_APR_GATEWAY
 	bytes_written = nrf_write(at_socket_fd, GET_PSK_ID, GET_PSK_ID_LEN);
 	__ASSERT_NO_MSG(bytes_written == GET_PSK_ID_LEN);
-	bytes_read = nrf_read(at_socket_fd, psk_buf, At_CMNG_READ_LEN);
-	__ASSERT_NO_MSG(bytes_read == At_CMNG_READ_LEN);
+	bytes_read = nrf_read(at_socket_fd, psk_buf, AT_CMNG_READ_LEN);
+	__ASSERT_NO_MSG(bytes_read == AT_CMNG_READ_LEN);
 
 	if (!strncmp(psk_buf, GET_PSK_ID_ERR, strlen(GET_PSK_ID_ERR))) {
-		snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s", "no-psk-ids");
+		snprintf(id, id_len, "no-psk-ids");
 	} else {
 /*
  * below, we extract the 'nrf-124578' portion as the gateway_id
@@ -495,7 +483,27 @@ int nct_client_id_get(char *id, size_t id_len)
 
 		snprintf(id, id_len, "%s", gateway_id);
 	}
+}
+#endif
+
+/* Function to get the client id */
+int nct_client_id_get(char *id, size_t id_len)
+{
+#if !defined(NRF_CLOUD_CLIENT_ID)
+#if defined(CONFIG_BSD_LIBRARY)
+	int at_socket_fd;
+	int ret;
+
+	at_socket_fd = nrf_socket(NRF_AF_LTE, NRF_SOCK_DGRAM, NRF_PROTO_AT);
+	__ASSERT_NO_MSG(at_socket_fd >= 0);
+
+#ifdef CONFIG_APR_GATEWAY
+	gw_client_id_get(at_socket_fd, id, id_len);
 #else
+	char imei_buf[NRF_IMEI_LEN + 1];
+	int bytes_written;
+	int bytes_read;
+
 	bytes_written = nrf_write(at_socket_fd, "AT+CGSN", 7);
 	__ASSERT_NO_MSG(bytes_written == 7);
 

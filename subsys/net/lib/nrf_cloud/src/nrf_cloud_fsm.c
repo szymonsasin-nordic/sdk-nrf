@@ -430,6 +430,8 @@ static int cc_rx_data_handler(const struct nct_evt *nct_evt)
 
 static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 {
+	int err;
+
 	if (nct_evt->param.data_id == CLOUD_STATE_REQ_ID) {
 		nfsm_set_current_state_and_notify(STATE_CLOUD_STATE_REQUESTED,
 						  NULL);
@@ -438,8 +440,6 @@ static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 
 	if (nct_evt->param.data_id == PAIRING_STATUS_REPORT_ID) {
 #ifndef CONFIG_APR_GATEWAY
-		int err;
-
 		if (!persistent_session) {
 			err = nct_dc_connect();
 			if (err) {
@@ -459,7 +459,6 @@ static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 #else
 		struct nct_evt nevt = { .type = NCT_EVT_DC_CONNECTED,
 					.status = 0 };
-		int err;
 
 		if (!persistent_session) {
 			LOG_INF("Subscribing to c2g topic");

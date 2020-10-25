@@ -24,8 +24,6 @@ manifest:
       url-base: https://github.com/nrfconnect
     - name: nrfcloud
       url-base: https://github.com/nRFCloud
-    - name: origin
-      url-base: https://github.com/plskeggs
     # Third-party repository sources:
     - name: zephyrproject
       url-base: https://github.com/zephyrproject-rtos

@@ -403,15 +403,17 @@ static inline int cloud_user_data_set(struct cloud_backend *const backend,
 
 /**@brief Get the id string for the current device.
  *
- * @param backend   Pointer to cloud backend structure.
- * @param user_data Pointer to user defined data that will be passed on as
- * 		       argument to cloud event handler.
+ * @param backend	Pointer to cloud backend structure.
+ * @param id		Pointer to buffer to receive ID.
+ * @param id_len	Size of buffer.
+ * @return 0 on success otherwise error number.
  */
 static inline int cloud_get_id(const struct cloud_backend *const backend,
 		      char *id, size_t id_len)
 {
 	if (backend == NULL || backend->api == NULL ||
-	    backend->api->get_id == NULL) {
+	    backend->api->get_id == NULL || id == NULL ||
+	    id_len == 0) {
 		return -ENOTSUP;
 	}
 

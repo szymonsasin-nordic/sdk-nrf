@@ -211,17 +211,16 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 	cJSON *item;
 	cJSON *address_obj;
 	cJSON *ble_address;
-	int ret = 0;
 
 	state_obj = json_object_decode(root_obj, "state");
 	if (state_obj == NULL) {
-		goto done;
+		return -EINVAL;
 	}
 
 	desired_connections_obj = json_object_decode(state_obj,
 						  "desiredConnections");
 	if(desired_connections_obj == NULL) {
-		goto done;
+		return -EINVAL;
 	}
 
 	LOG_DBG("gateway state change detected: %s", log_strdup(input_ptr));
@@ -249,13 +248,13 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 						    i);
 		} else {
 			LOG_ERR("invalid desired connection");
+			return -EINVAL;
 		}
 	}
 
 	ble_conn_mgr_update_connections();
 
-done:
-	return ret;
+	return 0;
 }
 #endif
 
@@ -322,7 +321,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	if (compare(state_str, DUA_PIN_STR)) {
 		(*requested_state) = STATE_UA_PIN_WAIT;
 	} else {
-		LOG_ERR("Deprecated state. Delete device from nrfCloud and "
+		LOG_ERR("Deprecated state. Delete device from nRF Cloud and "
 			"update device with JITP certificates.");
 		cJSON_Delete(root_obj);
 		return -ENOTSUP;
@@ -449,6 +448,7 @@ int nrf_cloud_encode_state(uint32_t reported_state, struct nrf_cloud_data *outpu
 		ret += json_add_null(reported_obj, "stage");
 		ret += json_add_null(reported_obj,
 				     "nrfcloud_mqtt_topic_prefix");
+		ret += json_add_null(connection_obj, "keepalive");
 		break;
 	}
 	case STATE_UA_PIN_COMPLETE: {
@@ -480,6 +480,7 @@ int nrf_cloud_encode_state(uint32_t reported_state, struct nrf_cloud_data *outpu
 			cJSON_Delete(state_obj);
 			cJSON_Delete(reported_obj);
 			cJSON_Delete(pairing_obj);
+			cJSON_Delete(connection_obj);
 
 			return -ENOMEM;
 		}
@@ -498,6 +499,7 @@ int nrf_cloud_encode_state(uint32_t reported_state, struct nrf_cloud_data *outpu
 		cJSON_Delete(state_obj);
 		cJSON_Delete(reported_obj);
 		cJSON_Delete(pairing_obj);
+		cJSON_Delete(connection_obj);
 		return -ENOTSUP;
 	}
 	}
@@ -512,6 +514,7 @@ int nrf_cloud_encode_state(uint32_t reported_state, struct nrf_cloud_data *outpu
 		cJSON_Delete(state_obj);
 		cJSON_Delete(reported_obj);
 		cJSON_Delete(pairing_obj);
+		cJSON_Delete(connection_obj);
 
 		return -ENOMEM;
 	}
