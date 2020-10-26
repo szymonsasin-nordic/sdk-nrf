@@ -214,13 +214,13 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 
 	state_obj = json_object_decode(root_obj, "state");
 	if (state_obj == NULL) {
-		return -EINVAL;
+		return 0;
 	}
 
 	desired_connections_obj = json_object_decode(state_obj,
 						  "desiredConnections");
 	if(desired_connections_obj == NULL) {
-		return -EINVAL;
+		return 0;
 	}
 
 	LOG_DBG("gateway state change detected: %s", log_strdup(input_ptr));
@@ -282,6 +282,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 #ifdef CONFIG_APR_GATEWAY
 	int ret = nrf_cloud_decode_gateway_state(input->ptr, root_obj);
 	if (ret != 0) {
+		LOG_ERR("Error from nrf_cloud_decode_gateway_state(): %d", ret);
 		return ret;
 	}
 #endif
@@ -321,8 +322,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	if (compare(state_str, DUA_PIN_STR)) {
 		(*requested_state) = STATE_UA_PIN_WAIT;
 	} else {
-		LOG_ERR("Deprecated state. Delete device from nRF Cloud and "
-			"update device with JITP certificates.");
+		LOG_ERR("Deprecated state. Delete device from nRF Cloud and update device with JITP certificates.");
 		cJSON_Delete(root_obj);
 		return -ENOTSUP;
 	}
