@@ -130,6 +130,19 @@ static int update_job_execution(struct mqtt_client *const client,
 	LOG_DBG("%s, state: %d, version_number: %d", __func__,
 		state, execution_version_number);
 
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+	if ((job_id == NULL) || (job_id[0] == 0)) {
+		LOG_INF("Skipping aws_jobs_update_job_execution() call");
+		struct aws_fota_event aws_fota_evt = {
+			.id = AWS_FOTA_EVT_DONE };
+
+		accepted = true;
+		callback(&aws_fota_evt);
+		LOG_INF("Job document updated with SUCCEEDED");
+		LOG_INF("Ready to reboot");
+		return 0;
+	}
+#endif
 	ret = aws_jobs_update_job_execution(client, job_id, state,
 						 NULL,
 					     execution_version_number,
