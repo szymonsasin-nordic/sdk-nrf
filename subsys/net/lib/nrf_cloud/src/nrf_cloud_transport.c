@@ -17,7 +17,7 @@
 #include <sys/util.h>
 #include <settings/settings.h>
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 #include "gateway.h"
 #endif
 
@@ -45,7 +45,7 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #define NRF_CLOUD_CLIENT_ID_LEN (sizeof(NRF_CLOUD_CLIENT_ID) - 1)
 #endif
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 #undef NRF_CLOUD_CLIENT_ID_LEN
 #define NRF_CLOUD_CLIENT_ID_LEN  10
 #define AT_CMNG_READ_LEN 97
@@ -90,7 +90,7 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #define NCT_SHADOW_GET AWS "%s/shadow/get"
 #define NCT_SHADOW_GET_LEN (AWS_LEN + NRF_CLOUD_CLIENT_ID_LEN + 11)
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 #define GET_PSK_ID "AT%CMNG=2,16842753,4"
 #define GET_PSK_ID_LEN (sizeof(GET_PSK_ID)-1)
 #define GET_PSK_ID_ERR "ERROR"
@@ -295,7 +295,7 @@ static uint32_t dc_send(const struct nct_dc_data *dc_data, uint8_t qos)
 	return mqtt_publish(&nct.client, &publish);
 }
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 void shadow_publish(char* buffer)
 {
 	struct mqtt_publish_param publish = {
@@ -389,7 +389,7 @@ static bool strings_compare(const char *s1, const char *s2, uint32_t s1_len,
 	return (strncmp(s1, s2, MIN(s1_len, s2_len))) ? false : true;
 }
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 /* Verify if the topic is a gw topic or not. */
 static bool gw_topic_match(const struct mqtt_topic *topic)
 {
@@ -431,7 +431,7 @@ static bool control_channel_topic_match(uint32_t list_id,
 	return false;
 }
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 static void gw_client_id_get(int at_socket_fd, char *id, size_t id_len)
 {
 	char psk_buf[100];
@@ -497,7 +497,7 @@ int nct_client_id_get(char *id, size_t id_len)
 	at_socket_fd = nrf_socket(NRF_AF_LTE, NRF_SOCK_DGRAM, NRF_PROTO_AT);
 	__ASSERT_NO_MSG(at_socket_fd >= 0);
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 	gw_client_id_get(at_socket_fd, id, id_len);
 #else
 	char imei_buf[NRF_IMEI_LEN + 1];
@@ -965,7 +965,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	struct nct_dc_data dc;
 	bool event_notify = false;
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 	/* TODO: resolve this in a better way, like by passing handler in
 	 * through a structure element
 	 */
@@ -1039,7 +1039,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 			evt.type = NCT_EVT_CC_RX_DATA;
 			evt.param.cc = &cc;
 			event_notify = true;
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 		} else if (gw_topic_match(&p->message.topic)) {
 			gw.id = p->message_id;
 			gw.data.ptr = nct.payload_buf;
@@ -1092,7 +1092,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 					err);
 			}
 		}
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 		if (_mqtt_evt->param.suback.message_id == NCT_CG_SUBSCRIBE_ID) {
 			evt.type = NCT_EVT_DC_CONNECTED;
 			event_notify = true;
@@ -1145,7 +1145,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 		}
 	}
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 	else if (gateway_notify) {
 		err = gateway_handler(&gw);
 		if (err != 0) {

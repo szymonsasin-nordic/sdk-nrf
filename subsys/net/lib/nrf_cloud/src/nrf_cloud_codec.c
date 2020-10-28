@@ -14,7 +14,7 @@
 #include "cJSON.h"
 #include "cJSON_os.h"
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 #include "gateway.h"
 #include "ble_conn_mgr.h"
 #endif
@@ -202,7 +202,7 @@ int nrf_cloud_encode_sensor_data(const struct nrf_cloud_sensor_data *sensor,
 	return 0;
 }
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 int nrf_cloud_decode_gateway_state(const char *input_ptr,
 				   cJSON *root_obj)
 {
@@ -279,7 +279,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 		return -ENOENT;
 	}
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 	int ret = nrf_cloud_decode_gateway_state(input->ptr, root_obj);
 	if (ret != 0) {
 		LOG_ERR("Error from nrf_cloud_decode_gateway_state(): %d", ret);
@@ -293,7 +293,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 		json_object_decode(desired_obj, "nrfcloud_mqtt_topic_prefix");
 	if (topic_prefix_obj != NULL) {
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 		set_gw_rx_topic(topic_prefix_obj->valuestring);
 		set_gw_tx_topic(topic_prefix_obj->valuestring);
 #endif
@@ -306,7 +306,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	pairing_state_obj = json_object_decode(pairing_obj, "state");
 
 	if (!pairing_state_obj || pairing_state_obj->type != cJSON_String) {
-#ifndef CONFIG_APR_GATEWAY
+#ifndef CONFIG_NRF_CLOUD_GATEWAY
 		if (cJSON_HasObjectItem(desired_obj, "config") == false) {
 			LOG_WRN("Unhandled data received from nRF Cloud.");
 			LOG_INF("Ensure device firmware is up to date.");

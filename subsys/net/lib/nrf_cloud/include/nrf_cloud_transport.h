@@ -136,7 +136,7 @@ int nct_client_id_get(char *id, size_t id_len);
 void nct_apply_update(void);
 
 
-#ifdef CONFIG_APR_GATEWAY
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
 void g2c_send(char* buffer);
 void shadow_publish(char* buffer);
 int nct_gw_subscribe(char* c2g_topic_str);
