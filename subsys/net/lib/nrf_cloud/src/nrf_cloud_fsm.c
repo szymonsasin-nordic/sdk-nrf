@@ -439,13 +439,16 @@ static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 	}
 
 	if (nct_evt->param.data_id == PAIRING_STATUS_REPORT_ID) {
-#ifndef CONFIG_NRF_CLOUD_GATEWAY
 		if (!persistent_session) {
+#ifndef CONFIG_NRF_CLOUD_GATEWAY
 			err = nct_dc_connect();
+#else
+			LOG_INF("Subscribing to c2g topic");
+			err = nct_gw_connect();
+#endif
 			if (err) {
 				return err;
 			}
-
 			nfsm_set_current_state_and_notify(STATE_DC_CONNECTING,
 							  NULL);
 		} else {
@@ -456,26 +459,7 @@ static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 				" skipping nct_dc_connect()");
 			nfsm_handle_incoming_event(&nevt, STATE_DC_CONNECTING);
 		}
-#else
-		struct nct_evt nevt = { .type = NCT_EVT_DC_CONNECTED,
-					.status = 0 };
-
-		if (!persistent_session) {
-			LOG_INF("Subscribing to c2g topic");
-			err = nct_gw_connect();
-			if (err) {
-				return err;
-			}
-			nfsm_set_current_state_and_notify(STATE_DC_CONNECTING,
-							  NULL);
-		} else {
-			LOG_DBG("Previous session valid;"
-				" skipping nct_gw_connect()");
-			nfsm_handle_incoming_event(&nevt, STATE_DC_CONNECTING);
-		}
-#endif
 	}
-
 	return 0;
 }
 
