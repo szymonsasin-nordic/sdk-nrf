@@ -369,6 +369,8 @@ void set_gw_rx_topic(char* topic_prefix)
 	if (end_of_stage) {
 		len = end_of_stage - topic_prefix;
 		if (len >= sizeof(stage)) {
+			LOG_WRN("Truncating copy of stage string length from %d to %zd",
+				len, sizeof(stage));
 			len = sizeof(stage) - 1;
 		}
 		memcpy(stage, topic_prefix, len);
@@ -498,8 +500,6 @@ static void gw_client_id_get(int at_socket_fd, char *id, size_t id_len)
 			snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s",
 				 "no-psk-ids");
 		}
-		/* printk("Gateway ID:%s\n", gateway_id); */
-
 		snprintf(id, id_len, "%s", gateway_id);
 	}
 }
@@ -968,7 +968,7 @@ int nct_mqtt_connect(void)
 static int publish_get_payload(struct mqtt_client *client, size_t length)
 {
 	if (length > sizeof(nct.payload_buf)) {
-		LOG_WRN("length specified:%zd larger than payload_buf:%zd",
+		LOG_ERR("length specified:%zd larger than payload_buf:%zd",
 			length, sizeof(nct.payload_buf));
 		return -EMSGSIZE;
 	}

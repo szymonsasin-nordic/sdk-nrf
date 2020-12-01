@@ -203,14 +203,36 @@ int nrf_cloud_encode_sensor_data(const struct nrf_cloud_sensor_data *sensor,
 }
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
+
+char *get_addr_from_des_conn_array(cJSON *array, int index)
+{
+	cJSON *item;
+	cJSON *address_obj;
+	cJSON *ble_address;
+
+	item = cJSON_GetArrayItem(array, index);
+	if (item == NULL) {
+		return NULL;
+	}
+
+	address_obj = cJSON_GetObjectItem(item, "address");
+	if (address_obj == NULL) {
+		ble_address = cJSON_GetObjectItem(item, "id");
+	} else {
+		ble_address = cJSON_GetObjectItem(address_obj, "address");
+	}
+
+	if (ble_address != NULL) {
+		return ble_address->valuestring;
+	}
+	return NULL;
+}
+
 int nrf_cloud_decode_gateway_state(const char *input_ptr,
 				   cJSON *root_obj)
 {
 	cJSON *state_obj;
 	cJSON *desired_connections_obj;
-	cJSON *item;
-	cJSON *address_obj;
-	cJSON *ble_address;
 	char *addr;
 
 	state_obj = json_object_decode(root_obj, "state");
@@ -232,20 +254,11 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 
 	/* first, search for additions to the array */
 	for (int i = 0; i < cJSON_GetArraySize(desired_connections_obj); i++) {
-		item = cJSON_GetArrayItem(desired_connections_obj, i);
-		address_obj = cJSON_GetObjectItem(item, "address");
+		addr = get_addr_from_des_conn_array(desired_connections_obj, i);
 
-		if (address_obj == NULL) {
-			ble_address = cJSON_GetObjectItem(item, "id");
-		} else {
-			ble_address = cJSON_GetObjectItem(address_obj,
-							  "address");
-		}
-
-		if (ble_address != NULL) {
+		if (addr != NULL) {
 			bool found = false;
 
-			addr = ble_address->valuestring;
 			for (int j = 0; j < num_cons; j++) {
 				if ((strcmp(addr, cons[j].addr) == 0) &&
 				    cons[j].active) {
@@ -273,17 +286,9 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 
 		for (int j = 0; j < cJSON_GetArraySize(desired_connections_obj);
 		     j++) {
-			item = cJSON_GetArrayItem(desired_connections_obj, j);
-			address_obj = cJSON_GetObjectItem(item, "address");
-
-			if (address_obj == NULL) {
-				ble_address = cJSON_GetObjectItem(item, "id");
-			} else {
-				ble_address = cJSON_GetObjectItem(address_obj,
-								  "address");
-			}
-			if (ble_address != NULL) {
-				addr = ble_address->valuestring;
+			addr = get_addr_from_des_conn_array(
+						    desired_connections_obj, j);
+			if (addr != NULL) {
 				if ((strcmp(addr, cons[i].addr) == 0) &&
 				    cons[i].active) {
 					found = true;
@@ -310,20 +315,10 @@ int nrf_cloud_decode_gateway_state(const char *input_ptr,
 	ble_conn_mgr_clear_desired(false);
 
 	for (int i = 0; i < cJSON_GetArraySize(desired_connections_obj); i++) {
-		item = cJSON_GetArrayItem(desired_connections_obj, i);
-		address_obj = cJSON_GetObjectItem(item, "address");
+		addr = get_addr_from_des_conn_array(desired_connections_obj, i);
 
-		if (address_obj == NULL) {
-			ble_address = cJSON_GetObjectItem(item, "id");
-		} else {
-			ble_address = cJSON_GetObjectItem(address_obj,
-							  "address");
-		}
-
-		if (ble_address != NULL) {
-			addr = ble_address->valuestring;
-			LOG_DBG("Desired BLE address: %s",
-				log_strdup(addr));
+		if (addr != NULL) {
+			LOG_DBG("Desired BLE address: %s", log_strdup(addr));
 
 			if (!ble_conn_mgr_enabled(addr)) {
 				LOG_INF("Skipping disabled device: %s",
@@ -589,8 +584,6 @@ int nrf_cloud_update_gateway_state(struct desired_conn *desired,
 	err = nct_cc_send(&msg);
 	if (err) {
 		LOG_ERR("nct_cc_send failed %d", err);
-		nrf_cloud_free((void *)msg.data.ptr);
-		return err;
 	}
 
 	nrf_cloud_free((void *)msg.data.ptr);
