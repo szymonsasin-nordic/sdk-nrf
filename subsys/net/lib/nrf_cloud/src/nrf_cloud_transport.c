@@ -96,9 +96,9 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #define GET_PSK_ID_ERR "ERROR"
 #define GW_TOPIC_STR_LEN 13
 #define MAX_GW_TOPIC_LEN 256
-uint8_t nct_c2g_topic_len = 0;
+uint8_t nct_c2g_topic_len;
 char nct_c2g_topic_buf[MAX_GW_TOPIC_LEN];
-uint8_t nct_g2c_topic_len = 0;
+uint8_t nct_g2c_topic_len;
 char nct_g2c_topic_buf[MAX_GW_TOPIC_LEN];
 char gateway_id[NRF_CLOUD_CLIENT_ID_LEN+1];
 #endif
@@ -298,7 +298,7 @@ static uint32_t dc_send(const struct nct_dc_data *dc_data, uint8_t qos)
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
 static char stage[8];
 
-void shadow_publish(char* buffer)
+void shadow_publish(char *buffer)
 {
 	struct mqtt_publish_param publish = {
 		.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE,
@@ -312,7 +312,7 @@ void shadow_publish(char* buffer)
 	mqtt_publish(&nct.client, &publish);
 }
 
-int g2c_send(char* buffer)
+int g2c_send(char *buffer)
 {
 	if (!nct_g2c_topic_len) {
 		return -EINVAL;
@@ -330,7 +330,7 @@ int g2c_send(char* buffer)
 	return  mqtt_publish(&nct.client, &publish);
 }
 
-int nct_gw_subscribe(char* c2g_topic_str)
+int nct_gw_subscribe(char *c2g_topic_str)
 {
 	struct mqtt_topic c2g_topic = {
 		.topic = {
@@ -361,7 +361,7 @@ void nct_gw_get_stage(char *cur_stage, const int cur_stage_len)
 	strncpy(cur_stage, stage, cur_stage_len);
 }
 
-void set_gw_rx_topic(char* topic_prefix)
+void set_gw_rx_topic(char *topic_prefix)
 {
 	char *end_of_stage = strchr(topic_prefix, '/');
 	int len;
@@ -369,7 +369,8 @@ void set_gw_rx_topic(char* topic_prefix)
 	if (end_of_stage) {
 		len = end_of_stage - topic_prefix;
 		if (len >= sizeof(stage)) {
-			LOG_WRN("Truncating copy of stage string length from %d to %zd",
+			LOG_WRN("Truncating copy of stage string length "
+				"from %d to %zd",
 				len, sizeof(stage));
 			len = sizeof(stage) - 1;
 		}
@@ -389,7 +390,7 @@ void set_gw_rx_topic(char* topic_prefix)
 	}
 }
 
-void set_gw_tx_topic(char* topic_prefix)
+void set_gw_tx_topic(char *topic_prefix)
 {
 	nct_g2c_topic_len = snprintf(nct_g2c_topic_buf, MAX_GW_TOPIC_LEN,
 				 "%sgateways/%s/g2c", topic_prefix, gateway_id);
@@ -530,7 +531,8 @@ int nct_client_id_get(char *id, size_t id_len)
 	__ASSERT_NO_MSG(bytes_read == NRF_IMEI_LEN);
 	imei_buf[NRF_IMEI_LEN] = 0;
 
-	snprintf(id, id_len, "%s%s", CONFIG_NRF_CLOUD_CLIENT_ID_PREFIX, imei_buf);
+	snprintf(id, id_len, "%s%s", CONFIG_NRF_CLOUD_CLIENT_ID_PREFIX,
+		 imei_buf);
 #endif
 
 	ret = nrf_close(at_socket_fd);
