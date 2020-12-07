@@ -19,14 +19,14 @@ static struct k_thread uart_handler_thread;
 #define UART_OUTPUT_BUF_SIZE 40
 
 struct input_buffer_type {
-	u8_t buffer[UART_INPUT_BUF_SIZE];
+	uint8_t buffer[UART_INPUT_BUF_SIZE];
 	int offs;
 };
 
 static struct input_buffer_type input_buffer;
 
 struct output_buffer_type {
-	u8_t buffer[UART_OUTPUT_BUF_SIZE];
+	uint8_t buffer[UART_OUTPUT_BUF_SIZE];
 	int offs;
 };
 
@@ -43,7 +43,7 @@ static const char magic_start[] = "xogq";
 static const char magic_stop[] =  "foqs";
 static const int mcuboot_magic = 0x96f3b83d;
 
-static struct device *uart_dev;
+static const struct device *uart_dev;
 
 K_SEM_DEFINE(lte_uart_sem, 0, 1);
 
@@ -112,10 +112,11 @@ static void unused_func(enum dfu_target_evt_id evt)
 	ARG_UNUSED(evt);
 }
 
-static void uart_cb(struct device *x)
+static void uart_cb(const struct device *x, void *p)
 {
+	ARG_UNUSED(p);
 	static int bytes_recv = 0;
-	u8_t byte;
+	uint8_t byte;
 	int rx;
 
 	uart_irq_update(x);

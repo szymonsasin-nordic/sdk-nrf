@@ -16,19 +16,19 @@ K_SEM_DEFINE(dfu_targ_uart_sem, 0, 1);
 /* TODO: Many of the stuctures/variables could be declared in dfu_target_uart.h */
 
 struct output_buffer_type {
-	u8_t buffer[UART_OUTPUT_BUF_SIZE];
+	uint8_t buffer[UART_OUTPUT_BUF_SIZE];
 	int offs;
 };
 
 struct input_buffer_type {
-	u8_t buffer[UART_INPUT_BUF_SIZE];
+	uint8_t buffer[UART_INPUT_BUF_SIZE];
 	int offs;
 };
 
 static struct output_buffer_type output_buffer;
 static struct input_buffer_type input_buffer;
 
-static struct device *uart_dev;
+static const struct device *uart_dev;
 
 struct dfu_target_uart_input {
 	int active_func;
@@ -118,10 +118,11 @@ static void send_done(bool success)
 }
 
 
-static void uart_cb(struct device *x)
+static void uart_cb(const struct device *x, void *p)
 {
+	ARG_UNUSED(p);
 	static int bytes_recv = 0;
-	u8_t byte;
+	uint8_t byte;
 	int rx;
 
 	uart_irq_update(x);
@@ -154,7 +155,7 @@ static void uart_cb(struct device *x)
 
 bool dfu_target_uart_identify(const void *const buf)
 {
-	return *((const u32_t *)buf) == UART_HEADER_MAGIC;
+	return *((const uint32_t *)buf) == UART_HEADER_MAGIC;
 }
 
 static void parse_input(void)
