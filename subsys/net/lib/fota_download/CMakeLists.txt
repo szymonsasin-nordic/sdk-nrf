@@ -10,3 +10,4 @@ zephyr_library_sources(
 
 zephyr_include_directories_ifdef(CONFIG_SECURE_BOOT
   ${ZEPHYR_BASE}/../nrf/subsys/dfu/include)
+
