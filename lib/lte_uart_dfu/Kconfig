@@ -22,9 +22,9 @@ choice
 	default LTE_UART_DFU_UART_1
 	depends on LTE_UART_DFU
 	help
-		Sets the UART to use for the LTE UART DFU
-		-  UART 0
-		-  UART 1
+	  Sets the UART to use for the LTE UART DFU
+	  -  UART 0
+	  -  UART 1
 	config LTE_UART_DFU_UART_0
 		bool "UART 0"
 		# TODO: Consider whether depends on or select should be used here?

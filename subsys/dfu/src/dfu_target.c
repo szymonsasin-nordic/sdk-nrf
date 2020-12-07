@@ -57,7 +57,8 @@ int dfu_target_img_type(const void *const buf, size_t len)
 	#endif
 	#if defined(CONFIG_DFU_TARGET_UART)
 		if(dfu_target_uart_identify(buf)) {
-			printk("Image header is equal to 0x85f3d83a andthe UART type is chosen as dfu target\n");
+			printk("Image header is equal to 0x85f3d83a and "
+			       "the UART type is chosen as dfu target\n");
 			return DFU_TARGET_IMAGE_TYPE_UART;
 		}	
 	#endif
