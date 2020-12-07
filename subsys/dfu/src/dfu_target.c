@@ -9,6 +9,7 @@
 #include <dfu/dfu_target.h>
 #include "dfu_target_mcuboot.h"
 #include "dfu_target_modem.h"
+#include "dfu_target_uart.h"
 
 #ifdef CONFIG_DFU_TARGET_MODEM
 const struct dfu_target dfu_target_modem = {
@@ -28,6 +29,15 @@ const struct dfu_target dfu_target_mcuboot = {
 };
 #endif
 
+#ifdef CONFIG_DFU_TARGET_UART
+const struct dfu_target dfu_target_uart = {
+	.init  = dfu_target_uart_init,
+	.offset_get = dfu_target_uart_offset_get,
+	.write = dfu_target_uart_write,
+	.done  = dfu_target_uart_done,
+};
+#endif
+
 #define MIN_SIZE_IDENTIFY_BUF 32
 
 LOG_MODULE_REGISTER(dfu_target, CONFIG_DFU_TARGET_LOG_LEVEL);
@@ -36,21 +46,30 @@ static const struct dfu_target *current_target;
 
 int dfu_target_img_type(const void *const buf, size_t len)
 {
-	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT) &&
-	    dfu_target_mcuboot_identify(buf)) {
-		return DFU_TARGET_IMAGE_TYPE_MCUBOOT;
-	}
-
-	if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
-	    dfu_target_modem_identify(buf)) {
-		return DFU_TARGET_IMAGE_TYPE_MODEM_DELTA;
-	}
+	#if defined(CONFIG_DFU_TARGET_MCUBOOT)
+		LOG_INF("CONFIG_DFU_TARGET_MCUBOOT is defined");
+		if(dfu_target_mcuboot_identify(buf)) {
+			return DFU_TARGET_IMAGE_TYPE_MCUBOOT;
+		}
+	#endif
+	#if defined(CONFIG_DFU_TARGET_MODEM)
+		LOG_INF("CONFIG_DFU_TARGET_MODEM is defined");
+		if(dfu_target_modem_identify(buf)) {
+			return DFU_TARGET_IMAGE_TYPE_MODEM_DELTA;
+		}
+	#endif
+	#if defined(CONFIG_DFU_TARGET_UART)
+		if(dfu_target_uart_identify(buf)) {
+			printk("Image header is equal to 0x85f3d83a andthe UART type is chosen as dfu target\n");
+			return DFU_TARGET_IMAGE_TYPE_UART;
+		}	
+	#endif
 
 	if (len < MIN_SIZE_IDENTIFY_BUF) {
 		return -EAGAIN;
 	}
 
-	LOG_ERR("No supported image type found");
+	LOG_ERR("Received image type differs from expected image type");
 	return -ENOTSUP;
 }
 
@@ -58,13 +77,22 @@ int dfu_target_init(int img_type, size_t file_size, dfu_target_callback_t cb)
 {
 	const struct dfu_target *new_target = NULL;
 
-	if (IS_ENABLED(CONFIG_DFU_TARGET_MCUBOOT) &&
-	    img_type == DFU_TARGET_IMAGE_TYPE_MCUBOOT) {
-		new_target = &dfu_target_mcuboot;
-	} else if (IS_ENABLED(CONFIG_DFU_TARGET_MODEM) &&
-		   img_type == DFU_TARGET_IMAGE_TYPE_MODEM_DELTA) {
-		new_target = &dfu_target_modem;
-	}
+	#if defined(CONFIG_DFU_TARGET_MCUBOOT)
+		LOG_INF("CONFIG_DFU_TARGET_MCUBOOT is defined");
+		if(img_type == DFU_TARGET_IMAGE_TYPE_MCUBOOT){
+			new_target = &dfu_target_mcuboot;
+		}
+	#elif defined(CONFIG_DFU_TARGET_MODEM)
+		LOG_INF("CONFIG_DFU_TARGET_MODEM is defined");
+		if(img_type == DFU_TARGET_IMAGE_TYPE_MODEM_DELTA){
+			new_target = &dfu_target_modem;
+		}
+	#elif defined(CONFIG_DFU_TARGET_UART)
+		LOG_INF("CONFIG_DFU_TARGET_UART is defined");
+		if(img_type == DFU_TARGET_IMAGE_TYPE_UART){
+			new_target = &dfu_target_uart;
+		}
+	#endif
 
 	if (new_target == NULL) {
 		LOG_ERR("Unknown image type");

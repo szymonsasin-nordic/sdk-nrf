@@ -217,7 +217,6 @@ int dfu_target_mcuboot_done(bool successful)
 			reset_flash_context();
 			return err;
 		}
-
 		LOG_INF("MCUBoot image upgrade scheduled. Reset the device to "
 			"apply");
 	} else {
