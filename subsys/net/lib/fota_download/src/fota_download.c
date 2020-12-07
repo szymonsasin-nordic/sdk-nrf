@@ -113,7 +113,6 @@ static int download_client_callback(const struct download_client_evt *event)
 				return -1;
 			}
 		}
-
 		err = dfu_target_write(event->fragment.buf,
 				       event->fragment.len);
 		if (err != 0) {
