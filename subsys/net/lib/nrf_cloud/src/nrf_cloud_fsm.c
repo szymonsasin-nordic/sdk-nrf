@@ -383,12 +383,13 @@ static int cc_rx_data_handler(const struct nct_evt *nct_evt)
 	err = nrf_cloud_decode_requested_state(payload, &new_state);
 
 	if (err) {
+#ifndef CONFIG_NRF_CLOUD_GATEWAY
 		if (!config_found) {
 			LOG_ERR("nrf_cloud_decode_requested_state Failed %d",
 				err);
 			return err;
 		}
-
+#endif
 		/* Config only, nothing else to do */
 		return 0;
 	}
@@ -430,11 +431,15 @@ static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 
 	if (nct_evt->param.data_id == PAIRING_STATUS_REPORT_ID) {
 		if (!persistent_session) {
+#ifndef CONFIG_NRF_CLOUD_GATEWAY
 			err = nct_dc_connect();
+#else
+			LOG_INF("Subscribing to c2g topic");
+			err = nct_gw_connect();
+#endif
 			if (err) {
 				return err;
 			}
-
 			nfsm_set_current_state_and_notify(STATE_DC_CONNECTING,
 							  NULL);
 		} else {
@@ -446,7 +451,6 @@ static int cc_tx_ack_handler(const struct nct_evt *nct_evt)
 			nfsm_handle_incoming_event(&nevt, STATE_DC_CONNECTING);
 		}
 	}
-
 	return 0;
 }
 

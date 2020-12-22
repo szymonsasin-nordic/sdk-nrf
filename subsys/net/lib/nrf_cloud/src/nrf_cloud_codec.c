@@ -14,6 +14,11 @@
 #include "cJSON.h"
 #include "cJSON_os.h"
 
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+#include "gateway.h"
+#include "ble_conn_mgr.h"
+#endif
+
 LOG_MODULE_REGISTER(nrf_cloud_codec, CONFIG_NRF_CLOUD_LOG_LEVEL);
 
 #define DUA_PIN_STR "not_associated"
@@ -197,6 +202,146 @@ int nrf_cloud_encode_sensor_data(const struct nrf_cloud_sensor_data *sensor,
 	return 0;
 }
 
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+
+char *get_addr_from_des_conn_array(cJSON *array, int index)
+{
+	cJSON *item;
+	cJSON *address_obj;
+	cJSON *ble_address;
+
+	item = cJSON_GetArrayItem(array, index);
+	if (item == NULL) {
+		return NULL;
+	}
+
+	address_obj = cJSON_GetObjectItem(item, "address");
+	if (address_obj == NULL) {
+		ble_address = cJSON_GetObjectItem(item, "id");
+	} else {
+		ble_address = cJSON_GetObjectItem(address_obj, "address");
+	}
+
+	if (ble_address != NULL) {
+		return ble_address->valuestring;
+	}
+	return NULL;
+}
+
+int nrf_cloud_decode_gateway_state(const char *input_ptr,
+				   cJSON *root_obj)
+{
+	cJSON *state_obj;
+	cJSON *desired_connections_obj;
+	char *addr;
+
+	state_obj = json_object_decode(root_obj, "state");
+	if (state_obj == NULL) {
+		return 0;
+	}
+
+	desired_connections_obj = json_object_decode(state_obj,
+						  "desiredConnections");
+	if (desired_connections_obj == NULL) {
+		return 0;
+	}
+
+	bool changed = false;
+	int num_cons;
+	struct desired_conn *cons = get_desired_array(&num_cons);
+
+	/* check whether anything has actually changed */
+
+	/* first, search for additions to the array */
+	for (int i = 0; i < cJSON_GetArraySize(desired_connections_obj); i++) {
+		addr = get_addr_from_des_conn_array(desired_connections_obj, i);
+
+		if (addr != NULL) {
+			bool found = false;
+
+			for (int j = 0; j < num_cons; j++) {
+				if ((strcmp(addr, cons[j].addr) == 0) &&
+				    cons[j].active) {
+					found = true;
+					break;
+				}
+			}
+			/* new device found in cloud's array */
+			if (!found) {
+				LOG_INF("new device added by cloud: %s",
+					log_strdup(addr));
+				changed = true;
+				break;
+			}
+		}
+	}
+
+	/* second, search for removals from the array */
+	for (int i = 0; i < num_cons; i++) {
+		bool found = false;
+
+		if (!cons[i].active) {
+			continue;
+		}
+
+		for (int j = 0; j < cJSON_GetArraySize(desired_connections_obj);
+		     j++) {
+			addr = get_addr_from_des_conn_array(
+						    desired_connections_obj, j);
+			if (addr != NULL) {
+				if ((strcmp(addr, cons[i].addr) == 0) &&
+				    cons[i].active) {
+					found = true;
+					break;
+				}
+			}
+		}
+
+		/* device removed from cloud's array */
+		if (!found) {
+			LOG_INF("device removed by cloud: %s",
+				log_strdup(cons[i].addr));
+			changed = true;
+			break;
+		}
+	}
+
+	if (!changed) {
+		LOG_INF("ignoring gateway state change");
+		return 0;
+	}
+	LOG_DBG("gateway state change detected: %s", log_strdup(input_ptr));
+
+	ble_conn_mgr_clear_desired(false);
+
+	for (int i = 0; i < cJSON_GetArraySize(desired_connections_obj); i++) {
+		addr = get_addr_from_des_conn_array(desired_connections_obj, i);
+
+		if (addr != NULL) {
+			LOG_DBG("Desired BLE address: %s", log_strdup(addr));
+
+			if (!ble_conn_mgr_enabled(addr)) {
+				LOG_INF("Skipping disabled device: %s",
+					log_strdup(addr));
+				continue;
+			}
+			if (ble_conn_mgr_add_conn(addr)) {
+				LOG_DBG("Conn already added");
+			}
+			ble_conn_mgr_update_desired(addr,
+						    i);
+		} else {
+			LOG_ERR("invalid desired connection");
+			return -EINVAL;
+		}
+	}
+
+	ble_conn_mgr_update_connections();
+
+	return 0;
+}
+#endif
+
 int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 				     enum nfsm_state *requested_state)
 {
@@ -218,11 +363,26 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 		return -ENOENT;
 	}
 
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+	int ret;
+
+	ret = nrf_cloud_decode_gateway_state(input->ptr, root_obj);
+	if (ret != 0) {
+		LOG_ERR("Error from nrf_cloud_decode_gateway_state(): %d", ret);
+		return ret;
+	}
+#endif
+
 	nrf_cloud_decode_desired_obj(root_obj, &desired_obj);
 
 	topic_prefix_obj =
 		json_object_decode(desired_obj, "nrfcloud_mqtt_topic_prefix");
 	if (topic_prefix_obj != NULL) {
+
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+		set_gw_rx_topic(topic_prefix_obj->valuestring);
+		set_gw_tx_topic(topic_prefix_obj->valuestring);
+#endif
 		(*requested_state) = STATE_UA_PIN_COMPLETE;
 		cJSON_Delete(root_obj);
 		return 0;
@@ -232,11 +392,13 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *input,
 	pairing_state_obj = json_object_decode(pairing_obj, "state");
 
 	if (!pairing_state_obj || pairing_state_obj->type != cJSON_String) {
+#ifndef CONFIG_NRF_CLOUD_GATEWAY
 		if (cJSON_HasObjectItem(desired_obj, "config") == false) {
 			LOG_WRN("Unhandled data received from nRF Cloud.");
 			LOG_INF("Ensure device firmware is up to date.");
 			LOG_INF("Delete and re-add device to nRF Cloud if problem persists.");
 		}
+#endif
 		cJSON_Delete(root_obj);
 		return -ENOENT;
 	}
@@ -337,6 +499,101 @@ int nrf_cloud_encode_config_response(struct nrf_cloud_data const *const input,
 
 	return 0;
 }
+
+
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+static int nrf_cloud_encode_gateway_desired_list(struct desired_conn *desired,
+						 int num_desired,
+						 struct nrf_cloud_data *output)
+{
+	int ret;
+
+	__ASSERT_NO_MSG(output != NULL);
+
+	cJSON *root_obj = cJSON_CreateObject();
+	cJSON *state_obj = cJSON_CreateObject();
+	cJSON *desired_obj = cJSON_CreateObject();
+	cJSON *connections_obj = cJSON_CreateArray();
+
+	if ((root_obj == NULL) || (state_obj == NULL) ||
+	    (desired_obj == NULL) || (connections_obj == NULL)) {
+		cJSON_Delete(root_obj);
+		cJSON_Delete(state_obj);
+		cJSON_Delete(desired_obj);
+		cJSON_Delete(connections_obj);
+
+		return -ENOMEM;
+	}
+
+	ret = 0;
+	/* create array of desired BLE addresses */
+	for (int i = 0; i < num_desired; i++) {
+		if (desired[i].active) {
+			cJSON *item = cJSON_CreateObject();
+			ret += json_add_str(item, "id", desired[i].addr);
+			cJSON_AddItemToArray(connections_obj, item);
+		}
+	}
+
+	ret += json_add_obj(desired_obj, "desiredConnections", connections_obj);
+	ret += json_add_obj(state_obj, "desired", desired_obj);
+	ret += json_add_obj(root_obj, "state", state_obj);
+
+	if (ret != 0) {
+		cJSON_Delete(root_obj);
+		cJSON_Delete(state_obj);
+		cJSON_Delete(desired_obj);
+		cJSON_Delete(connections_obj);
+
+		return -ENOMEM;
+	}
+
+	char *buffer;
+
+	buffer = cJSON_PrintUnformatted(root_obj);
+	LOG_DBG("JSON: %s", log_strdup(buffer));
+	cJSON_Delete(root_obj);
+
+	if (buffer == NULL) {
+		return -ENOMEM;
+	}
+
+	output->ptr = buffer;
+	output->len = strlen(buffer);
+
+	return 0;
+}
+
+
+int nrf_cloud_update_gateway_state(struct desired_conn *desired,
+					  int num_desired)
+{
+	int err;
+	struct nct_cc_data msg = {
+		.opcode = NCT_CC_OPCODE_UPDATE_REQ,
+		.id = 1,
+	};
+
+	err = nrf_cloud_encode_gateway_desired_list(desired,
+						    num_desired,
+						    &msg.data);
+	if (err) {
+		LOG_ERR("nrf_cloud_encode_gateway_desired_list() failed %d",
+			err);
+		return err;
+	}
+
+	err = nct_cc_send(&msg);
+	if (err) {
+		LOG_ERR("nct_cc_send failed %d", err);
+	}
+
+	nrf_cloud_free((void *)msg.data.ptr);
+
+	return err;
+}
+
+#endif
 
 int nrf_cloud_encode_state(uint32_t reported_state, struct nrf_cloud_data *output)
 {
