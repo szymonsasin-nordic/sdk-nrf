@@ -7,6 +7,7 @@
 #ifndef NRF_CLOUD_TRANSPORT_H__
 #define NRF_CLOUD_TRANSPORT_H__
 
+#include <stddef.h>
 #include <net/nrf_cloud.h>
 
 #ifdef __cplusplus
@@ -45,6 +46,11 @@ struct nct_cc_data {
 	struct nrf_cloud_topic topic;
 	uint32_t id;
 	enum nct_cc_opcode opcode;
+};
+
+struct nct_gw_data {
+	struct nrf_cloud_data data;
+	uint32_t id;
 };
 
 struct nct_evt {
@@ -123,8 +129,22 @@ int nct_keepalive_time_left(void);
 /**@brief Input from the cloud module. */
 int nct_input(const struct nct_evt *evt);
 
+/**@brief Retrieve the device id. */
+int nct_client_id_get(char *id, size_t id_len);
+
 /**@brief Signal to apply FOTA update. */
 void nct_apply_update(void);
+
+
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+int g2c_send(char *buffer);
+void shadow_publish(char *buffer);
+int nct_gw_subscribe(char *c2g_topic_str);
+int nct_gw_connect(void);
+void set_gw_rx_topic(char *topic_prefix);
+void set_gw_tx_topic(char *topic_prefix);
+void nct_gw_get_stage(char *cur_stage, const int cur_stage_len);
+#endif
 
 #ifdef __cplusplus
 }
