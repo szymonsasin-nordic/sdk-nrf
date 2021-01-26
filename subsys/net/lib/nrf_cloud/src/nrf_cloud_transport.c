@@ -103,6 +103,8 @@ char nct_c2g_topic_buf[MAX_GW_TOPIC_LEN];
 uint8_t nct_g2c_topic_len;
 char nct_g2c_topic_buf[MAX_GW_TOPIC_LEN];
 char gateway_id[NRF_CLOUD_CLIENT_ID_LEN+1];
+static char stage[8];
+static char tenant[40];
 #endif
 
 /* Buffer for keeping the client_id + \0 */
@@ -287,7 +289,6 @@ static uint32_t dc_send(const struct nct_dc_data *dc_data, uint8_t qos)
 }
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
-static char stage[8];
 
 void shadow_publish(char *buffer)
 {
@@ -331,7 +332,7 @@ int nct_gw_subscribe(char *c2g_topic_str)
 		.qos = MQTT_QOS_1_AT_LEAST_ONCE
 	};
 
-	LOG_INF("nct_gw_subscribe");
+	LOG_INF("nct_gw_subscribe %s", log_strdup(c2g_topic_str));
 
 	const struct mqtt_subscription_list subscription_list = {
 		.list = &c2g_topic,
@@ -352,6 +353,11 @@ void nct_gw_get_stage(char *cur_stage, const int cur_stage_len)
 	strncpy(cur_stage, stage, cur_stage_len);
 }
 
+void nct_gw_get_tenant_id(char *cur_tenant, const int cur_tenant_len)
+{
+	strncpy(cur_tenant, tenant, cur_tenant_len);
+}
+
 void set_gw_rx_topic(char *topic_prefix)
 {
 	char *end_of_stage = strchr(topic_prefix, '/');
@@ -367,6 +373,15 @@ void set_gw_rx_topic(char *topic_prefix)
 		}
 		memcpy(stage, topic_prefix, len);
 		stage[len] = '\0';
+		len = strlen(topic_prefix) - len - 2; /* skip both / */
+		if (len > sizeof(tenant)) {
+			LOG_WRN("Truncating copy of tenant id string length "
+				"from %d to %zd",
+				len, sizeof(tenant));
+			len = sizeof(tenant) - 1;
+		}
+		memcpy(tenant, end_of_stage + 1, len);
+		tenant[len] = '\0';
 	}
 
 	nct_c2g_topic_len = snprintf(nct_c2g_topic_buf, MAX_GW_TOPIC_LEN,
@@ -1024,6 +1039,12 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 				LOG_ERR("Failed to save session state: %d",
 					err);
 			}
+#if defined(CONFIG_NRF_CLOUD_FOTA)
+			err = nrf_cloud_fota_subscribe();
+			if (err) {
+				LOG_ERR("FOTA MQTT subscribe failed: %d", err);
+			}
+#endif
 		}
 #endif
 		break;
