@@ -144,6 +144,7 @@ int nct_gw_connect(void);
 void set_gw_rx_topic(char *topic_prefix);
 void set_gw_tx_topic(char *topic_prefix);
 void nct_gw_get_stage(char *cur_stage, const int cur_stage_len);
+void nct_gw_get_tenant_id(char *cur_tenant, const int cur_tenant_len);
 #endif
 
 #ifdef __cplusplus
