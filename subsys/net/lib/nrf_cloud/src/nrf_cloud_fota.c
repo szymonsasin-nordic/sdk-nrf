@@ -275,6 +275,7 @@ int nrf_cloud_fota_init(nrf_cloud_fota_callback_t cb)
 		    saved_job.validate == NRF_CLOUD_FOTA_VALIDATE_UNKNOWN) &&
 		    saved_job.type == NRF_CLOUD_FOTA_MODEM) {
 		/* Device has just rebooted from a modem FOTA */
+		LOG_INF("FOTA updated modem");
 		ret = 1;
 	}
 
@@ -505,6 +506,10 @@ static int save_validate_status(const char *const job_id,
 			   const enum nrf_cloud_fota_type job_type,
 			   const enum fota_validate_status validate)
 {
+	if (job_id == NULL) {
+		LOG_WRN("No job_id; assuming CLI-invoked FOTA.");
+		return 0;
+	}
 	__ASSERT_NO_MSG(job_id != NULL);
 
 	int ret;
@@ -723,7 +728,7 @@ static int parse_job_info(struct nrf_cloud_fota_job_info *const job_info,
 		char *ble_str;
 
 		if (get_string_from_array(array, RCV_ITEM_IDX_BLE_ID,
-					  &ble_str)) {
+					   &ble_str)) {
 			LOG_ERR("Failed to get BLE ID from job");
 			goto cleanup;
 		}
@@ -929,9 +934,11 @@ static bool is_job_status_terminal(const enum nrf_cloud_fota_status status)
 		return false;
 	}
 }
+
 static int send_job_update(struct nrf_cloud_fota_job *const job)
 {
-	if (job == NULL) {
+	/* ensure shell-invoked fota doesn't crash below */
+	if ((job == NULL) || (job->info.id == NULL)) {
 		return -EINVAL;
 	} else if (client_mqtt == NULL) {
 		return -ENXIO;
@@ -959,7 +966,7 @@ static int send_job_update(struct nrf_cloud_fota_job *const job)
 		result &= add_number_to_array(array, job->dl_progress);
 	} else {
 		result &= add_string_to_array(array,
-					      get_error_string(job->error));
+					     get_error_string(job->error));
 	}
 
 	if (!result) {
