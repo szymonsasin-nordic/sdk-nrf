@@ -275,6 +275,7 @@ int nrf_cloud_fota_init(nrf_cloud_fota_callback_t cb)
 		    saved_job.validate == NRF_CLOUD_FOTA_VALIDATE_UNKNOWN) &&
 		    saved_job.type == NRF_CLOUD_FOTA_MODEM) {
 		/* Device has just rebooted from a modem FOTA */
+		LOG_INF("FOTA updated modem");
 		ret = 1;
 	}
 
@@ -505,6 +506,10 @@ static int save_validate_status(const char *const job_id,
 			   const enum nrf_cloud_fota_type job_type,
 			   const enum fota_validate_status validate)
 {
+	if (job_id == NULL) {
+		LOG_WRN("No job_id; assuming CLI-invoked FOTA.");
+		return 0;
+	}
 	__ASSERT_NO_MSG(job_id != NULL);
 
 	int ret;
@@ -926,9 +931,11 @@ static bool is_job_status_terminal(const enum nrf_cloud_fota_status status)
 		return false;
 	}
 }
+
 static int send_job_update(struct nrf_cloud_fota_job *const job)
 {
-	if (job == NULL) {
+	/* ensure shell-invoked fota doesn't crash below */
+	if ((job == NULL) || (job->info.id == NULL)) {
 		return -EINVAL;
 	} else if (client_mqtt == NULL) {
 		return -ENXIO;
@@ -956,7 +963,7 @@ static int send_job_update(struct nrf_cloud_fota_job *const job)
 		result &= add_number_to_array(array, job->dl_progress);
 	} else {
 		result &= add_string_to_array(array,
-					      get_error_string(job->error));
+					     get_error_string(job->error));
 	}
 
 	if (!result) {
@@ -1049,7 +1056,7 @@ static int handle_mqtt_evt_publish(const struct mqtt_evt *evt)
 
 	ret = parse_job_info(job_info, ble_id, payload, &payload_array);
 
-	if (strcmp(last_job, job_info->id) == 0) {
+	if (ret == 0 && strcmp(last_job, job_info->id) == 0) {
 		skip = true;
 		LOG_INF("Job %s already completed... skipping",
 			log_strdup(last_job));
