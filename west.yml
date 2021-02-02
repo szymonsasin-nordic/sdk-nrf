@@ -111,11 +111,10 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: 8243ed209863ee1a3bf2a5d2735a939e8f890f4f
-    #  revision: feature-large-block-fix
-    # remote: origin
-
-      remote: ncs
+    # revision: 8243ed209863ee1a3bf2a5d2735a939e8f890f4f
+    # remote: ncs
+      revision: feature-large-block-fix2
+      remote: origin
     # Other third-party repositories.
     - name: cmock
       path: test/cmock
