@@ -742,6 +742,13 @@ int save_session_state(const int session_valid)
 	return ret;
 }
 
+#if defined(CONFIG_NRF_CLOUD_GATEWAY)
+int get_session_state(void)
+{
+	return persistent_session;
+}
+#endif
+
 static int nct_settings_init(void)
 {
 	int ret = 0;
