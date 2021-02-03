@@ -21,10 +21,6 @@
 #include <settings/settings.h>
 #include <modem/at_cmd.h>
 
-#ifdef CONFIG_NRF_CLOUD_GATEWAY
-#include "gateway.h"
-#endif
-
 #if defined(CONFIG_NRF_MODEM_LIB)
 #include <nrf_socket.h>
 #endif
@@ -45,12 +41,6 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 	(sizeof(CONFIG_NRF_CLOUD_CLIENT_ID_PREFIX) - 1 + NRF_IMEI_LEN)
 #else
 #define NRF_CLOUD_CLIENT_ID_LEN (sizeof(NRF_CLOUD_CLIENT_ID) - 1)
-#endif
-
-#ifdef CONFIG_NRF_CLOUD_GATEWAY
-#undef NRF_CLOUD_CLIENT_ID_LEN
-#define NRF_CLOUD_CLIENT_ID_LEN  10
-#define AT_CMNG_READ_LEN 97
 #endif
 
 #define NRF_CLOUD_HOSTNAME CONFIG_NRF_CLOUD_HOST_NAME
@@ -93,6 +83,9 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #define NCT_SHADOW_GET_LEN (AWS_LEN + NRF_CLOUD_CLIENT_ID_LEN + 11)
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
+#undef NRF_CLOUD_CLIENT_ID_LEN
+#define NRF_CLOUD_CLIENT_ID_LEN  10
+#define AT_CMNG_READ_LEN 97
 #define GET_PSK_ID "AT%CMNG=2,16842753,4"
 #define GET_PSK_ID_LEN (sizeof(GET_PSK_ID)-1)
 #define GET_PSK_ID_ERR "ERROR"
@@ -105,6 +98,7 @@ char nct_g2c_topic_buf[MAX_GW_TOPIC_LEN];
 char gateway_id[NRF_CLOUD_CLIENT_ID_LEN+1];
 static char stage[8];
 static char tenant[40];
+static gateway_handler_t gateway_handler;
 #endif
 
 /* Buffer for keeping the client_id + \0 */
@@ -288,7 +282,17 @@ static uint32_t dc_send(const struct nct_dc_data *dc_data, uint8_t qos)
 	return mqtt_publish(&nct.client, &publish);
 }
 
+static bool strings_compare(const char *s1, const char *s2, uint32_t s1_len,
+			    uint32_t s2_len)
+{
+	return (strncmp(s1, s2, MIN(s1_len, s2_len))) ? false : true;
+}
+
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
+void nct_register_gateway_handler(gateway_handler_t handler)
+{
+	gateway_handler = handler;
+}
 
 void shadow_publish(char *buffer)
 {
@@ -409,15 +413,7 @@ void set_gw_tx_topic(char *topic_prefix)
 		nct_g2c_topic_len = 0;
 	}
 }
-#endif
 
-static bool strings_compare(const char *s1, const char *s2, uint32_t s1_len,
-			    uint32_t s2_len)
-{
-	return (strncmp(s1, s2, MIN(s1_len, s2_len))) ? false : true;
-}
-
-#ifdef CONFIG_NRF_CLOUD_GATEWAY
 /* Verify if the topic is a gw topic or not. */
 static bool gw_topic_match(const struct mqtt_topic *topic)
 {
@@ -908,10 +904,6 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 	struct nct_dc_data dc;
 	bool event_notify = false;
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
-	/* TODO: resolve this in a better way, like by passing handler in
-	 * through a structure element
-	 */
-	extern uint8_t gateway_handler(const struct nct_gw_data *gw_data);
 	struct nct_gw_data gw;
 	bool gateway_notify = false;
 #endif
@@ -1095,9 +1087,13 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
 	else if (gateway_notify) {
-		err = gateway_handler(&gw);
-		if (err != 0) {
-			LOG_ERR("nct_input: failed %d", err);
+		if (gateway_handler) {
+			err = gateway_handler(&gw);
+			if (err != 0) {
+				LOG_ERR("nct_input: failed %d", err);
+			}
+		} else {
+			LOG_ERR("No gateway handler registered");
 		}
 	}
 #endif

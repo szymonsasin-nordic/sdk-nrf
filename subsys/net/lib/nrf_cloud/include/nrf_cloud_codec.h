@@ -46,11 +46,10 @@ int nrf_cloud_encode_config_response(struct nrf_cloud_data const *const input,
 				     bool *const has_config);
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
-struct desired_conn;
+typedef int (*gateway_state_handler_t)(void *root_obj);
 
-/** @brief Update desired BLE devices array */
-int nrf_cloud_update_gateway_state(struct desired_conn *desired,
-					  int num_desired);
+void nrf_cloud_register_gateway_state_handler(gateway_state_handler_t handler);
+
 #endif
 
 #ifdef __cplusplus
