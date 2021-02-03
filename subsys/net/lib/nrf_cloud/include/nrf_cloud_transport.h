@@ -137,6 +137,9 @@ void nct_apply_update(void);
 
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
+typedef uint8_t (*gateway_handler_t)(const struct nct_gw_data *gw_data);
+
+void nct_register_gateway_handler(gateway_handler_t handler);
 int g2c_send(char *buffer);
 void shadow_publish(char *buffer);
 int nct_gw_subscribe(char *c2g_topic_str);
