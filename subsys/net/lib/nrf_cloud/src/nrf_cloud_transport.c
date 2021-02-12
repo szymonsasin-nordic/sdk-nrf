@@ -302,7 +302,7 @@ void shadow_publish(char *buffer)
 		.message.topic.topic.utf8 = update_topic,
 		.message.payload.data = buffer,
 		.message.payload.len = strlen(buffer),
-		.message_id = dc_get_next_message_id()
+		.message_id = get_next_message_id()
 	};
 
 	mqtt_publish(&nct.client, &publish);
@@ -320,7 +320,7 @@ int g2c_send(char *buffer)
 		.message.topic.topic.utf8 = nct_g2c_topic_buf,
 		.message.payload.data = buffer,
 		.message.payload.len = strlen(buffer),
-		.message_id = dc_get_next_message_id()
+		.message_id = get_next_message_id()
 	};
 
 	return  mqtt_publish(&nct.client, &publish);
