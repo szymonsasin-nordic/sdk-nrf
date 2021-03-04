@@ -518,10 +518,14 @@ int nct_client_id_get(char *id, size_t id_len)
 	int ret;
 
 	at_socket_fd = nrf_socket(NRF_AF_LTE, NRF_SOCK_DGRAM, NRF_PROTO_AT);
-	__ASSERT_NO_MSG(at_socket_fd >= 0);
+	if (at_socket_fd < 0) {
+		return -ENODEV;
+	}
 	gw_client_id_get(at_socket_fd, id, id_len);
 	ret = nrf_close(at_socket_fd);
-	__ASSERT_NO_MSG(ret == 0);
+	if (ret) {
+		return -EIO;
+	}
 #else
 	char imei_buf[CGSN_RESPONSE_LENGTH + 1];
 	int err;
