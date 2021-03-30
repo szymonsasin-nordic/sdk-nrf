@@ -94,7 +94,7 @@ static int network_data_add(struct network_param *network, cJSON *json_obj)
 {
 	char data_name[MODEM_INFO_MAX_RESPONSE_SIZE];
 	int total_len;
-	int ret;
+	int ret = 0;
 	int len;
 
 	static const char lte_string[]	 = "LTE-M";
@@ -113,8 +113,10 @@ static int network_data_add(struct network_param *network, cJSON *json_obj)
 	total_len += json_add_data(&network->ue_mode, json_obj);
 
 	len = modem_info_name_get(network->cellid_hex.type, data_name);
-	data_name[len] =  '\0';
-	ret = json_add_num(json_obj, data_name, network->cellid_dec);
+	if (len >= 0) {
+		data_name[len] =  '\0';
+		ret = json_add_num(json_obj, data_name, network->cellid_dec);
+	}
 
 	if (ret) {
 		LOG_DBG("Unable to add the cell ID.");

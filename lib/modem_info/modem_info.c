@@ -400,7 +400,7 @@ int modem_info_name_get(enum modem_info info, char *name)
 {
 	int len;
 
-	if (name == NULL) {
+	if ((name == NULL) || (info >= MODEM_INFO_COUNT)) {
 		return -EINVAL;
 	}
 
@@ -423,7 +423,7 @@ int modem_info_short_get(enum modem_info info, uint16_t *buf)
 	char recv_buf[CONFIG_MODEM_INFO_BUFFER_SIZE] = {0};
 	int cmd_length = 0;
 
-	if (buf == NULL) {
+	if ((buf == NULL) || (info >= MODEM_INFO_COUNT)) {
 		return -EINVAL;
 	}
 
@@ -474,7 +474,7 @@ int modem_info_string_get(enum modem_info info, char *buf,
 	/* return value indicating length of the string written to buf */
 	size_t len = 0;
 
-	if ((buf == NULL) || (buf_size == 0)) {
+	if ((buf == NULL) || (buf_size == 0) || (info >= MODEM_INFO_COUNT)) {
 		return -EINVAL;
 	}
 
