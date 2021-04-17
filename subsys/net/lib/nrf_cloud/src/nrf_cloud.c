@@ -442,7 +442,11 @@ reset:
 #ifdef CONFIG_BOARD_QEMU_X86
 #define POLL_THREAD_STACK_SIZE 4096
 #else
+#ifdef CONFIG_NRF_CLOUD_GATEWAY
+#define POLL_THREAD_STACK_SIZE 6144
+#else
 #define POLL_THREAD_STACK_SIZE 3072
+#endif
 #endif
 K_THREAD_DEFINE(connection_poll_thread, POLL_THREAD_STACK_SIZE,
 		nrf_cloud_run, NULL, NULL, NULL,

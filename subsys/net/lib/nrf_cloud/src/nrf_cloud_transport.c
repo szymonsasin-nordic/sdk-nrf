@@ -87,15 +87,15 @@ LOG_MODULE_REGISTER(nrf_cloud_transport, CONFIG_NRF_CLOUD_LOG_LEVEL);
 #define NRF_CLOUD_CLIENT_ID_LEN  10
 #define AT_CMNG_READ_LEN 97
 #define GET_PSK_ID "AT%CMNG=2,16842753,4"
-#define GET_PSK_ID_LEN (sizeof(GET_PSK_ID)-1)
+#define GET_PSK_ID_LEN (sizeof(GET_PSK_ID) - 1)
 #define GET_PSK_ID_ERR "ERROR"
 #define GW_TOPIC_STR_LEN 13
 #define MAX_GW_TOPIC_LEN 256
 uint8_t nct_c2g_topic_len;
-char nct_c2g_topic_buf[MAX_GW_TOPIC_LEN];
+char nct_c2g_topic_buf[MAX_GW_TOPIC_LEN + 1];
 uint8_t nct_g2c_topic_len;
-char nct_g2c_topic_buf[MAX_GW_TOPIC_LEN];
-char gateway_id[NRF_CLOUD_CLIENT_ID_LEN+1];
+char nct_g2c_topic_buf[MAX_GW_TOPIC_LEN + 1];
+char gateway_id[NRF_CLOUD_CLIENT_ID_LEN + 1];
 static char stage[8];
 static char tenant[40];
 static gateway_handler_t gateway_handler;
@@ -322,6 +322,9 @@ int g2c_send(char *buffer)
 		.message.payload.len = strlen(buffer),
 		.message_id = get_next_message_id()
 	};
+
+	LOG_DBG("topic: %s", log_strdup((const char *)nct_g2c_topic_buf));
+	LOG_HEXDUMP_DBG(buffer, strlen(buffer), "payload");
 
 	return  mqtt_publish(&nct.client, &publish);
 }
