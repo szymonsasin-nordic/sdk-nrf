@@ -79,23 +79,17 @@ BUILD_ASSERT(IMEI_CLIENT_ID_LEN <= NRF_CLOUD_CLIENT_ID_MAX_LEN,
 #undef NRF_CLOUD_CLIENT_ID_LEN
 #define NRF_CLOUD_CLIENT_ID_LEN  10
 #define AT_CMNG_READ_LEN 97
-#define GET_PSK_ID "AT%CMNG=2,16842753,4"
-#define GET_PSK_ID_LEN (sizeof(GET_PSK_ID)-1)
-#define GET_PSK_ID_ERR "ERROR"
 #define GW_TOPIC_STR_LEN 13
 #define MAX_GW_TOPIC_LEN 256
 uint8_t nct_c2g_topic_len;
 char nct_c2g_topic_buf[MAX_GW_TOPIC_LEN];
 uint8_t nct_g2c_topic_len;
 char nct_g2c_topic_buf[MAX_GW_TOPIC_LEN];
-char gateway_id[NRF_CLOUD_CLIENT_ID_LEN+1];
 static char stage[8];
 static char tenant[40];
 static gateway_handler_t gateway_handler;
 #endif
 
-/* Buffer for keeping the client_id + \0 */
-static char client_id_buf[NRF_CLOUD_CLIENT_ID_LEN + 1];
 /* Null-terminated MQTT client ID */
 static char *client_id_buf;
 
@@ -348,7 +342,7 @@ void set_gw_rx_topic(char *topic_prefix)
 	}
 
 	nct_c2g_topic_len = snprintf(nct_c2g_topic_buf, MAX_GW_TOPIC_LEN,
-				 "%sgateways/%s/c2g", topic_prefix, gateway_id);
+				 "%sgateways/%s/c2g", topic_prefix, client_id_buf);
 
 	if ((nct_c2g_topic_len > 0) && (nct_c2g_topic_len < MAX_GW_TOPIC_LEN)) {
 		LOG_INF("Gateway RX Topic: %s Len: %d",
@@ -362,7 +356,7 @@ void set_gw_rx_topic(char *topic_prefix)
 void set_gw_tx_topic(char *topic_prefix)
 {
 	nct_g2c_topic_len = snprintf(nct_g2c_topic_buf, MAX_GW_TOPIC_LEN,
-				 "%sgateways/%s/g2c", topic_prefix, gateway_id);
+				 "%sgateways/%s/g2c", topic_prefix, client_id_buf);
 
 	if ((nct_g2c_topic_len > 0) && (nct_g2c_topic_len < MAX_GW_TOPIC_LEN)) {
 		LOG_INF("Gateway TX Topic: %s Len: %d",
@@ -623,106 +617,15 @@ err_cleanup:
 	return ret;
 }
 
-#ifdef CONFIG_NRF_CLOUD_GATEWAY
-static void gw_client_id_get(int at_socket_fd, char *id, size_t id_len)
-{
-	char psk_buf[100];
-	int bytes_written;
-	int bytes_read;
-
-	bytes_written = nrf_write(at_socket_fd, GET_PSK_ID, GET_PSK_ID_LEN);
-	__ASSERT_NO_MSG(bytes_written == GET_PSK_ID_LEN);
-	bytes_read = nrf_read(at_socket_fd, psk_buf, AT_CMNG_READ_LEN);
-	__ASSERT_NO_MSG(bytes_read == AT_CMNG_READ_LEN);
-
-	if (!strncmp(psk_buf, GET_PSK_ID_ERR, strlen(GET_PSK_ID_ERR))) {
-		snprintf(id, id_len, "no-psk-ids");
-	} else {
-/*
- * below, we extract the 'nrf-124578' portion as the gateway_id
- * AT%CMNG=2,16842753,4 returns:
- * %CMNG: 16842753,
- * 4,
- * "0404040404040404040404040404040404040404040404040404040404040404",
- * "nrf-124578"
- */
-		int ofs;
-		int i;
-		int len = strlen(psk_buf);
-		char *ptr = psk_buf;
-		const char *delimiters = ",";
-
-		LOG_DBG("ID is inside this: %s", log_strdup(psk_buf));
-		for (i = 0; i < 3; i++) {
-			ofs = strcspn(ptr, delimiters) + 1;
-			ptr += ofs;
-			len -= ofs;
-			if (len <= 0) {
-				break;
-			}
-		}
-		if (len > 0) {
-			if (*ptr == '"') {
-				ptr++;
-			}
-			memcpy(gateway_id, ptr, NRF_CLOUD_CLIENT_ID_LEN);
-			gateway_id[NRF_CLOUD_CLIENT_ID_LEN] = 0;
-		} else {
-			snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s",
-				 "no-psk-ids");
-		}
-		snprintf(id, id_len, "%s", gateway_id);
-	}
-}
-#endif
-
 /* Function to get the client id */
 int nct_client_id_get(char *id, size_t id_len)
 {
-#if !defined(NRF_CLOUD_CLIENT_ID)
-#if defined(CONFIG_NRF_MODEM_LIB)
-#ifdef CONFIG_NRF_CLOUD_GATEWAY
-	int at_socket_fd;
-	int ret;
-
-	at_socket_fd = nrf_socket(NRF_AF_LTE, NRF_SOCK_DGRAM, NRF_PROTO_AT);
-	__ASSERT_NO_MSG(at_socket_fd >= 0);
-	gw_client_id_get(at_socket_fd, id, id_len);
-	ret = nrf_close(at_socket_fd);
-	__ASSERT_NO_MSG(ret == 0);
-#else
-	char imei_buf[CGSN_RESPONSE_LENGTH + 1];
-	int err;
-
-	if (!IS_ENABLED(CONFIG_AT_CMD_SYS_INIT)) {
-		err = at_cmd_init();
-		if (err) {
-			LOG_ERR("at_cmd failed to initialize, error: %d", err);
-			return err;
-		}
+	if (client_id_buf) {
+		strncpy(id, client_id_buf, id_len);
+		LOG_DBG("client_id = %s", log_strdup(id));
+		return 0;
 	}
-
-	err = at_cmd_write("AT+CGSN", imei_buf, sizeof(imei_buf), NULL);
-	if (err) {
-		LOG_ERR("Failed to obtain IMEI, error: %d", err);
-		return err;
-	}
-
-	imei_buf[NRF_IMEI_LEN] = 0;
-
-	snprintf(id, NRF_CLOUD_CLIENT_ID_LEN + 1, "%s%.*s",
-		 CONFIG_NRF_CLOUD_CLIENT_ID_PREFIX, NRF_IMEI_LEN, imei_buf);
-#endif /* CONFIG_NRF_CLOUD_GATEWAY */
-#else
-#error Missing NRF_CLOUD_CLIENT_ID
-#endif /* defined(CONFIG_NRF_MODEM_LIB) */
-#else
-	memcpy(id, NRF_CLOUD_CLIENT_ID, id_len);
-#endif /* !defined(NRF_CLOUD_CLIENT_ID) */
-
-	LOG_DBG("client_id = %s", log_strdup(id));
-
-	return 0;
+	return -EINVAL;
 }
 
 static int nct_topics_populate(void)
