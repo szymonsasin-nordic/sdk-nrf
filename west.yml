@@ -59,7 +59,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/introduction/index.html
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
-    # remote: nrfcloud
+      # remote: nrfcloud
       remote: origin
       revision: feature-debug-improvements
       repo-path: sdk-zephyr
