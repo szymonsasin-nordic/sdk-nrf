@@ -76,9 +76,6 @@ BUILD_ASSERT(IMEI_CLIENT_ID_LEN <= NRF_CLOUD_CLIENT_ID_MAX_LEN,
 #define NCT_SHADOW_GET AWS "%s/shadow/get"
 
 #ifdef CONFIG_NRF_CLOUD_GATEWAY
-#undef NRF_CLOUD_CLIENT_ID_LEN
-#define NRF_CLOUD_CLIENT_ID_LEN  10
-#define AT_CMNG_READ_LEN 97
 #define GW_TOPIC_STR_LEN 13
 #define MAX_GW_TOPIC_LEN 256
 uint8_t nct_c2g_topic_len;
@@ -251,8 +248,8 @@ void shadow_publish(char *buffer)
 {
 	struct mqtt_publish_param publish = {
 		.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE,
-		.message.topic.topic.size = NCT_UPDATE_TOPIC_LEN,
 		.message.topic.topic.utf8 = update_topic,
+		.message.topic.topic.size = strlen(update_topic),
 		.message.payload.data = buffer,
 		.message.payload.len = strlen(buffer),
 		.message_id = get_next_message_id()
@@ -626,60 +623,6 @@ int nct_client_id_get(char *id, size_t id_len)
 		return 0;
 	}
 	return -EINVAL;
-}
-
-static int nct_topics_populate(void)
-{
-	int ret;
-
-	ret = nct_client_id_get(client_id_buf, sizeof(client_id_buf));
-	if (ret != 0) {
-		return ret;
-	}
-
-	ret = snprintf(shadow_base_topic, sizeof(shadow_base_topic),
-		       NCT_SHADOW_BASE_TOPIC, client_id_buf);
-	if (ret != NCT_SHADOW_BASE_TOPIC_LEN) {
-		return -ENOMEM;
-	}
-	LOG_DBG("shadow_base_topic: %s", log_strdup(shadow_base_topic));
-
-	ret = snprintf(accepted_topic, sizeof(accepted_topic),
-		       NCT_ACCEPTED_TOPIC, client_id_buf);
-	if (ret != NCT_ACCEPTED_TOPIC_LEN) {
-		return -ENOMEM;
-	}
-	LOG_DBG("accepted_topic: %s", log_strdup(accepted_topic));
-
-	ret = snprintf(rejected_topic, sizeof(rejected_topic),
-		       NCT_REJECTED_TOPIC, client_id_buf);
-	if (ret != NCT_REJECTED_TOPIC_LEN) {
-		return -ENOMEM;
-	}
-	LOG_DBG("rejected_topic: %s", log_strdup(rejected_topic));
-
-	ret = snprintf(update_delta_topic, sizeof(update_delta_topic),
-		       NCT_UPDATE_DELTA_TOPIC, client_id_buf);
-	if (ret != NCT_UPDATE_DELTA_TOPIC_LEN) {
-		return -ENOMEM;
-	}
-	LOG_DBG("update_delta_topic: %s", log_strdup(update_delta_topic));
-
-	ret = snprintf(update_topic, sizeof(update_topic), NCT_UPDATE_TOPIC,
-		       client_id_buf);
-	if (ret != NCT_UPDATE_TOPIC_LEN) {
-		return -ENOMEM;
-	}
-	LOG_DBG("update_topic: %s", log_strdup(update_topic));
-
-	ret = snprintf(shadow_get_topic, sizeof(shadow_get_topic),
-		       NCT_SHADOW_GET, client_id_buf);
-	if (ret != NCT_SHADOW_GET_LEN) {
-		return -ENOMEM;
-	}
-	LOG_DBG("shadow_get_topic: %s", log_strdup(shadow_get_topic));
-
-	return 0;
 }
 
 /* Provisions root CA certificate using modem_key_mgmt API */
