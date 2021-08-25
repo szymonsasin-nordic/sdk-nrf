@@ -533,6 +533,32 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 }
 
 #if defined(CONFIG_DATE_TIME)
+static void print_time(void)
+{
+	int err;
+	int64_t unix_time_ms;
+	char dst[120];
+
+	err = date_time_now(&unix_time_ms);
+	if (!err) {
+		time_t unix_time;
+		struct tm *time;
+
+		unix_time = unix_time_ms / MSEC_PER_SEC;
+		LOG_INF("Unix time %lld", unix_time);
+		time = gmtime(&unix_time);
+		if (time) {
+			/* 2020-02-19T18:38:50.363Z */
+			strftime(dst, sizeof(dst), "%Y-%m-%dT%H:%M:%S.000Z", time);
+			LOG_INF("Date/time %s", log_strdup(dst));
+		} else {
+			LOG_WRN("Time not valid");
+		}
+	} else {
+		LOG_ERR("Date/time not available: %d", err);
+	}
+}
+
 static void date_time_event_handler(const struct date_time_evt *evt)
 {
 	switch (evt->type) {
@@ -541,6 +567,7 @@ static void date_time_event_handler(const struct date_time_evt *evt)
 		break;
 	case DATE_TIME_OBTAINED_NTP:
 		LOG_INF("DATE_TIME_OBTAINED_NTP");
+		print_time();
 		break;
 	case DATE_TIME_OBTAINED_EXT:
 		LOG_INF("DATE_TIME_OBTAINED_EXT");
