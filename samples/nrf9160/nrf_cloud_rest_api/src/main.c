@@ -85,6 +85,39 @@ static bool jitp_requested;
 static char const * fota_status_details = FOTA_STATUS_DETAILS_SUCCESS;
 static struct nrf_modem_gnss_pvt_data_frame last_pvt;
 
+static void init_conn_stats(void)
+{
+	int err;
+	uint8_t buf[120];
+
+	err = at_cmd_write("AT%XCONNSTAT=1", buf, sizeof(buf), NULL);
+	if (err == 0) {
+		LOG_INF("Modem response from enabling conn stat: %s", log_strdup(buf));
+	}
+}
+
+static void query_conn_stats(void)
+{
+	int err;
+	uint8_t buf[120];
+
+	err = at_cmd_write("AT%XCONNSTAT?", buf, sizeof(buf), NULL);
+	if (err == 0) {
+		LOG_INF("Conn stat: %s", log_strdup(buf));
+	}
+}
+
+static void deinit_conn_stats(void)
+{
+	int err;
+	uint8_t buf[120];
+
+	err = at_cmd_write("AT%XCONNSTAT=0", buf, sizeof(buf), NULL);
+	if (err == 0) {
+		LOG_INF("Modem response from disabling conn stat: %s", log_strdup(buf));
+	}
+}
+
 static int set_device_id(void)
 {
 	int err = 0;
@@ -360,8 +393,9 @@ static int do_jitp(void)
 
 int init(void)
 {
-	int err = init_led();
+	int err;
 
+	err = init_led();
 	if (err){
 		LOG_ERR("LED init failed");
 		return err;
@@ -379,13 +413,6 @@ int init(void)
 		LOG_ERR("Failed to initialize AT commands, err %d", err);
 		return err;
 	}
-
-	err = at_notif_init();
-	if (err) {
-		LOG_ERR("Failed to initialize AT notifications, err %d", err);
-		return err;
-	}
-
 
 	gps_dev = device_get_binding("NRF9160_GPS");
 	if (gps_dev != NULL) {
@@ -512,8 +539,11 @@ void main(void)
 	};
 	struct gps_agps_request agps = {
 		.utc = 1,
-		.sv_mask_ephe = 1,
-		.sv_mask_alm = 1,
+		.sv_mask_ephe = 0xFFFFFFFF,
+		.sv_mask_alm = 0xFFFFFFFF,
+		.system_time_tow = 1,
+		.position = 1,
+		.integrity  = 1,
 		.klobuchar = 1
 	};
 	struct nrf_cloud_rest_agps_result agps_result = {
@@ -530,6 +560,8 @@ void main(void)
 
 	struct nrf_cloud_rest_pgps_request pgps_request;
 
+	int agps_count = 0;
+
 	int err = init();
 
 	if (err)
@@ -537,6 +569,8 @@ void main(void)
 		LOG_ERR("Initialization failed");
 		goto cleanup;
 	}
+
+	init_conn_stats();
 
 	err = connect_to_network();
 	if (err){
@@ -565,6 +599,8 @@ retry:
 		goto fota_start;
 	}
 
+	query_conn_stats();
+
 	LOG_INF("\n******************* Locate API *******************");
 	size_t sem_cnt = k_sem_count_get(&cell_data_ready);
 	if (!sem_cnt) {
@@ -583,14 +619,18 @@ retry:
 	}
 
 	loc_req.net_info = &cell_data;
+#if 0
 	err = nrf_cloud_rest_cell_pos_get(&rest_ctx, &loc_req, &location);
 	if (err) {
 		LOG_ERR("Cell Pos API call failed, error: %d", err);
 	} else {
 		LOG_INF("Cell Pos Response: %s", log_strdup(rest_ctx.response));
 	}
+	query_conn_stats();
+#endif
 
 pgps_start:
+#if 0
 	/* Exercise P-GPS API */
 	LOG_INF("\n********************* P-GPS API *********************");
 
@@ -600,9 +640,11 @@ pgps_start:
 	if (err) {
 		LOG_ERR("P-GPS request failed, error: %d", err);
 	}
-
+#endif
+agps_start:
 	/* Exercise A-GPS API */
 	LOG_INF("\n********************* A-GPS API *********************");
+	agps_print_enable(true);
 
 	agps_req.net_info = loc_req.net_info;
 	agps_req.agps_req = &agps;
@@ -621,6 +663,7 @@ pgps_start:
 		goto fota_start;
 	}
 
+	query_conn_stats();
 	LOG_INF("Additional buffer required to download A-GPS data of %d bytes",
 		agps_sz);
 
@@ -645,8 +688,15 @@ pgps_start:
 
 	k_free(agps_result.buf);
 	agps_result.buf = NULL;
+	query_conn_stats();
+
+	if (agps_count++ < 3) {
+		k_sleep(K_SECONDS(30));
+		goto agps_start;
+	}
 
 fota_start:
+#if 0
 	LOG_INF("\n******************* FOTA API *******************");
 
 	/* Exercise the FOTA API by checking for a job
@@ -700,6 +750,7 @@ fota_start:
 	} else {
 		LOG_INF("FOTA job updated, status: %d", fota_status);
 	}
+#endif
 
 cleanup:
 	(void)nrf_cloud_rest_disconnect(&rest_ctx);
