@@ -971,7 +971,7 @@ static void nct_mqtt_evt_handler(struct mqtt_client *const mqtt_client,
 		break;
 	}
 	case MQTT_EVT_DISCONNECT: {
-		LOG_DBG("MQTT_EVT_DISCONNECT: result = %d", _mqtt_evt->result);
+		LOG_INF("MQTT_EVT_DISCONNECT: result = %d", _mqtt_evt->result);
 
 		evt.type = NCT_EVT_DISCONNECTED;
 		event_notify = true;

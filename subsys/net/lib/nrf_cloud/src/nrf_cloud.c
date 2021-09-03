@@ -471,13 +471,19 @@ start:
 	atomic_set(&transport_disconnected, 0);
 
 	while (true) {
-		ret = poll(fds, ARRAY_SIZE(fds), nct_keepalive_time_left());
+		int time_left = nct_keepalive_time_left();
+
+		LOG_INF("calling poll() with time_left:%d", time_left);
+		ret = poll(fds, ARRAY_SIZE(fds), time_left);
 
 		/* If poll returns 0 the timeout has expired. */
 		if (ret == 0) {
+			LOG_INF("poll() RETURNED 0; time_left was %d", time_left);
 			nrf_cloud_process();
 			continue;
 		}
+		LOG_INF("poll returned %d; time_left was:%d, is:%d",
+			ret, time_left, nct_keepalive_time_left());
 
 		if ((fds[0].revents & POLLIN) == POLLIN) {
 			nrf_cloud_process();
@@ -509,8 +515,8 @@ start:
 		}
 
 		if ((fds[0].revents & POLLHUP) == POLLHUP) {
-			LOG_DBG("Socket error: POLLHUP");
-			LOG_DBG("Connection was closed by the cloud");
+			LOG_INF("Socket error: POLLHUP");
+			LOG_INF("Connection was closed by the cloud");
 			evt.status = NRF_CLOUD_DISCONNECT_CLOSED_BY_REMOTE;
 			break;
 		}
