@@ -100,6 +100,7 @@ int location_service_get_cell_location(const struct lte_lc_cells_info *cell_data
 	}
 
 	rest_ctx.auth = jwt.jwt_buf;
+	LOG_DBG("JWT: %s len:%d", log_strdup(jwt.jwt_buf), jwt.jwt_sz);
 
 	err = nrf_cloud_rest_cell_pos_get(&rest_ctx, &loc_req, &result);
 
