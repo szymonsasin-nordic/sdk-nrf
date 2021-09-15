@@ -643,6 +643,8 @@ int nrf_cloud_rest_cell_pos_get(struct nrf_cloud_rest_context *const rest_ctx,
 		goto clean_up;
 	}
 	if (rest_ctx->status != NRF_CLOUD_HTTP_STATUS_OK) {
+		LOG_DBG("HTTP status:%d; response:%s, len:%d", rest_ctx->status,
+			log_strdup(rest_ctx->response), rest_ctx->response_len);
 		ret = -EBADMSG;
 		goto clean_up;
 	}
