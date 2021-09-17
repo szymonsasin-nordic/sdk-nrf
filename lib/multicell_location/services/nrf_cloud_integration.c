@@ -111,6 +111,8 @@ int location_service_get_cell_location(const struct lte_lc_cells_info *cell_data
 		location->accuracy = (double)result.unc;
 		location->latitude = result.lat;
 		location->longitude = result.lon;
+		LOG_DBG("Fullfilled with: %s", 
+			(result.type == CELL_POS_TYPE_MULTI) ? "MCELL" : "SCELL");
 	}
 
 	return err;
