@@ -100,9 +100,13 @@ static void lte_handler(const struct lte_lc_evt *const evt)
 
 		/* Copy current and neighbor cell information. */
 		memcpy(&cell_data, &evt->cells_info, sizeof(struct lte_lc_cells_info));
-		memcpy(neighbor_cells, evt->cells_info.neighbor_cells,
-			sizeof(struct lte_lc_ncell) * cell_data.ncells_count);
-		cell_data.neighbor_cells = neighbor_cells;
+		if (evt->cells_info.neighbor_cells) {
+			memcpy(neighbor_cells, evt->cells_info.neighbor_cells,
+				sizeof(struct lte_lc_ncell) * cell_data.ncells_count);
+			cell_data.neighbor_cells = neighbor_cells;
+		} else {
+			cell_data.neighbor_cells = NULL;
+		}
 
 		k_sem_give(&cell_data_ready);
 		break;
