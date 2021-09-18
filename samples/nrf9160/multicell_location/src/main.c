@@ -32,11 +32,12 @@ LOG_MODULE_REGISTER(multicell_location_sample, CONFIG_MULTICELL_LOCATION_SAMPLE_
 BUILD_ASSERT(!IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT),
 	"The sample does not support automatic LTE connection establishment");
 
+static atomic_t connected;
 static K_SEM_DEFINE(lte_connected, 0, 1);
 static K_SEM_DEFINE(cell_data_ready, 0, 1);
 static struct k_work_delayable periodic_search_work;
 static struct k_work cell_change_search_work;
-static struct lte_lc_ncell neighbor_cells[17];
+static struct lte_lc_ncell neighbor_cells[CONFIG_LTE_NEIGHBOR_CELLS_MAX];
 static struct lte_lc_cells_info cell_data = {
 	.neighbor_cells = neighbor_cells,
 };
@@ -53,6 +54,7 @@ static void lte_handler(const struct lte_lc_evt *const evt)
 		LOG_INF("Network registration status: %s",
 			evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME ?
 			"Connected - home network" : "Connected - roaming");
+		atomic_set(&connected, 1);
 		k_sem_give(&lte_connected);
 		break;
 	case LTE_LC_EVT_PSM_UPDATE:
@@ -98,15 +100,28 @@ static void lte_handler(const struct lte_lc_evt *const evt)
 	case LTE_LC_EVT_NEIGHBOR_CELL_MEAS:
 		LOG_INF("Neighbor cell measurements received");
 
-		/* Copy current and neighbor cell information. */
-		memcpy(&cell_data, &evt->cells_info, sizeof(struct lte_lc_cells_info));
-		if (evt->cells_info.neighbor_cells) {
-			memcpy(neighbor_cells, evt->cells_info.neighbor_cells,
-				sizeof(struct lte_lc_ncell) * cell_data.ncells_count);
-			cell_data.neighbor_cells = neighbor_cells;
-		} else {
-			cell_data.neighbor_cells = NULL;
+		if (evt->cells_info.current_cell.id == 0) {
+			LOG_DBG("Cell ID not valid.");
+			break;
 		}
+
+		/* Copy current cell information. */
+		memcpy(&cell_data.current_cell,
+		       &evt->cells_info.current_cell,
+		       sizeof(struct lte_lc_cell));
+
+		/* Copy neighbor cell information if present. */
+		if (evt->cells_info.ncells_count > 0 && evt->cells_info.neighbor_cells) {
+			memcpy(neighbor_cells,
+			       evt->cells_info.neighbor_cells,
+			       sizeof(struct lte_lc_ncell) * evt->cells_info.ncells_count);
+
+			cell_data.ncells_count = evt->cells_info.ncells_count;
+		} else {
+			cell_data.ncells_count = 0;
+		}
+
+		LOG_INF("Neighbor cells found: %d", cell_data.ncells_count);
 
 		k_sem_give(&cell_data_ready);
 		break;
@@ -159,10 +174,16 @@ static int lte_connect(void)
 
 static void start_cell_measurements(void)
 {
-	int err = lte_lc_neighbor_cell_measurement();
+	int err;
 
+	if (!atomic_get(&connected)) {
+		return;
+	}
+
+	err = lte_lc_neighbor_cell_measurement();
 	if (err) {
-		LOG_ERR("Failed to initiate neighbor cell measurements");
+		LOG_ERR("Failed to initiate neighbor cell measurements, error: %d",
+			err);
 	}
 }
 
@@ -177,6 +198,11 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 static void cell_change_search_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
+
+	if (!atomic_get(&connected)) {
+		return;
+	}
+
 	LOG_INF("Cell change triggered start of cell measurements");
 	start_cell_measurements();
 }
@@ -294,7 +320,7 @@ void main(void)
 		return;
 	}
 
-	LOG_INF("Connecting to LTE network, this may take several minutes..");
+	LOG_INF("Connecting to LTE network, this may take several minutes...");
 
 	k_sem_take(&lte_connected, K_FOREVER);
 
@@ -304,6 +330,8 @@ void main(void)
 		LOG_INF("Requesting neighbor cell information every %d seconds",
 			CONFIG_MULTICELL_LOCATION_SAMPLE_REQUEST_PERIODIC_INTERVAL);
 		k_work_schedule(&periodic_search_work, K_NO_WAIT);
+	} else {
+		start_cell_measurements();
 	}
 
 	device_id = get_device_id();
@@ -316,7 +344,7 @@ void main(void)
 			print_cell_data();
 		}
 
-		LOG_INF("Sending location request..");
+		LOG_INF("Sending location request...");
 
 		err = multicell_location_get(&cell_data, device_id, &location);
 		if (err) {
