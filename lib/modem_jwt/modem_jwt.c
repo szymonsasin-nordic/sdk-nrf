@@ -140,12 +140,14 @@ int modem_jwt_generate(struct jwt_data *const jwt)
 		goto cleanup;
 	}
 
+	printk("JWT AT: %s\n", cmd);
 	ret = at_cmd_write(cmd, cmd_resp, CONFIG_MODEM_JWT_MAX_LEN, &state);
 	if (ret) {
 		ret = -EBADMSG;
 		goto cleanup;
 	}
 
+	printk("JWT resp: %s\n", cmd_resp);
 	ret = parse_jwt_at_cmd_resp(cmd_resp);
 	if (ret) {
 		ret = -ENOMSG;
