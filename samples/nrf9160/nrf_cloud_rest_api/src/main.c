@@ -23,9 +23,15 @@
 #include <dk_buttons_and_leds.h>
 #include <net/fota_download.h>
 #include <net/nrf_cloud_agps.h>
+#include <net/nrf_cloud_pgps.h>
 #include <drivers/gps.h>
-#include <modem/agps.h>
-#include <nrf_modem_gnss.h>
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+#include <pm_config.h>
+#include <date_time.h>
+#endif
+
+#define TEST_FOTA 0
+#define TEST_LOCATION 0
 
 #if defined(CONFIG_REST_ID_SRC_COMPILE_TIME)
 BUILD_ASSERT(sizeof(CONFIG_REST_DEVICE_ID) > 1, "Device ID must be specified");
@@ -60,6 +66,17 @@ static K_SEM_DEFINE(button_press_sem, 0, 1);
 static K_SEM_DEFINE(lte_connected, 0, 1);
 static K_SEM_DEFINE(cell_data_ready, 0, 1);
 
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+static K_SEM_DEFINE(do_pgps_request_sem, 0, 1);
+static K_SEM_DEFINE(time_obtained_sem, 0, 1);
+#endif
+static struct gps_pgps_request pgps_req = {
+	.gps_day = 15103,
+	.prediction_count = 42,
+	.prediction_period_min = 420,
+	.gps_time_of_day = 0
+};
+
 static struct lte_lc_ncell neighbor_cells[NCELL_MEAS_CNT];
 static struct lte_lc_cells_info cell_data = {
 	.neighbor_cells = neighbor_cells,
@@ -82,8 +99,10 @@ static struct gps_config gps_cfg = {
 static bool jitp_requested;
 #endif
 
+#if TEST_FOTA
 static char const * fota_status_details = FOTA_STATUS_DETAILS_SUCCESS;
-static struct nrf_modem_gnss_pvt_data_frame last_pvt;
+#endif
+void agps_print_enable(bool enable);
 
 static void init_conn_stats(void)
 {
@@ -117,6 +136,59 @@ static void deinit_conn_stats(void)
 		LOG_INF("Modem response from disabling conn stat: %s", log_strdup(buf));
 	}
 }
+
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+static struct k_work manage_pgps_work;
+static struct k_work notify_pgps_work;
+static struct gps_agps_request agps_request;
+static struct nrf_cloud_pgps_prediction *prediction;
+
+static void manage_pgps(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	int err;
+
+	LOG_INF("Sending prediction to modem...");
+	err = nrf_cloud_pgps_inject(prediction, &agps_request);
+	if (err) {
+		LOG_ERR("Unable to send prediction to modem: %d", err);
+	}
+
+	err = nrf_cloud_pgps_preemptive_updates();
+	if (err) {
+		LOG_ERR("Error requesting updates: %d", err);
+	}
+}
+
+static void notify_pgps(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	int err;
+
+	err = nrf_cloud_pgps_notify_prediction();
+	if (err) {
+		LOG_ERR("error requesting notification of prediction availability: %d", err);
+	}
+}
+
+void pgps_handler(struct nrf_cloud_pgps_event *event)
+{
+	/* GPS unit asked for it, but we didn't have it; check now */
+	LOG_INF("P-GPS event type: %d", event->type);
+
+	if (event->type == PGPS_EVT_REQUEST) {
+		LOG_INF("PGPS_EVT_REQUEST");
+		memcpy(&pgps_req, event->request, sizeof(pgps_req));
+		k_sem_give(&do_pgps_request_sem);
+		return;
+	} else if (event->type != PGPS_EVT_AVAILABLE) {
+		return;
+	}
+
+	prediction = event->prediction;
+	k_work_submit(&manage_pgps_work);
+}
+#endif
 
 static int set_device_id(void)
 {
@@ -165,43 +237,135 @@ static int set_device_id(void)
 	return -ENOTRECOVERABLE;
 }
 
-static void print_satellite_stats(struct nrf_modem_gnss_pvt_data_frame *pvt_data)
+#if defined(CONFIG_DATE_TIME)
+static void print_time(void)
 {
-	uint8_t tracked   = 0;
-	uint8_t in_fix    = 0;
-	uint8_t unhealthy = 0;
+	int err;
+	int64_t unix_time_ms;
+	char dst[120];
 
-	for (int i = 0; i < NRF_MODEM_GNSS_MAX_SATELLITES; ++i) {
-		if (pvt_data->sv[i].sv > 0) {
+	err = date_time_now(&unix_time_ms);
+	if (!err) {
+		time_t unix_time;
+		struct tm *time;
+
+		unix_time = unix_time_ms / MSEC_PER_SEC;
+		LOG_INF("Unix time: %lld", unix_time);
+		time = gmtime(&unix_time);
+		if (time) {
+			/* 2020-02-19T18:38:50.363Z */
+			strftime(dst, sizeof(dst), "%Y-%m-%dT%H:%M:%S.000Z", time);
+			LOG_INF("Date/time %s", log_strdup(dst));
+		} else {
+			LOG_WRN("Time not valid");
+		}
+	} else {
+		LOG_ERR("Date/time not available: %d", err);
+	}
+}
+
+static void date_time_event_handler(const struct date_time_evt *evt)
+{
+	switch (evt->type) {
+	case DATE_TIME_OBTAINED_MODEM:
+		LOG_INF("DATE_TIME_OBTAINED_MODEM");
+		k_sem_give(&time_obtained_sem);
+		break;
+	case DATE_TIME_OBTAINED_NTP:
+		LOG_INF("DATE_TIME_OBTAINED_NTP");
+		k_sem_give(&time_obtained_sem);
+		break;
+	case DATE_TIME_OBTAINED_EXT:
+		LOG_INF("DATE_TIME_OBTAINED_EXT");
+		k_sem_give(&time_obtained_sem);
+		break;
+	case DATE_TIME_NOT_OBTAINED:
+		LOG_INF("DATE_TIME_NOT_OBTAINED");
+		break;
+	default:
+		break;
+	}
+}
+#endif
+
+static void print_pvt_data(struct gps_pvt *pvt_data)
+{
+	char buf[300];
+	size_t len;
+
+	len = snprintf(buf, sizeof(buf),
+		      "\r\n\tLongitude:  %f\r\n\t"
+		      "Latitude:   %f\r\n\t"
+		      "Altitude:   %f\r\n\t"
+		      "Speed:      %f\r\n\t"
+		      "Heading:    %f\r\n\t"
+		      "Date:       %02u-%02u-%02u\r\n\t"
+		      "Time (UTC): %02u:%02u:%02u\r\n",
+		      pvt_data->longitude, pvt_data->latitude,
+		      pvt_data->altitude, pvt_data->speed, pvt_data->heading,
+		      pvt_data->datetime.year, pvt_data->datetime.month,
+		      pvt_data->datetime.day, pvt_data->datetime.hour,
+		      pvt_data->datetime.minute, pvt_data->datetime.seconds);
+	if (len < 0) {
+		LOG_ERR("Could not construct PVT print");
+	} else {
+		LOG_INF("%s", log_strdup(buf));
+	}
+}
+
+static void print_satellite_stats(struct gps_pvt *pvt_data)
+{
+	uint8_t tracked = 0;
+	uint32_t tracked_sats = 0;
+	static uint32_t prev_tracked_sats;
+	char print_buf[100];
+	size_t print_buf_len;
+
+	for (int i = 0; i < GPS_PVT_MAX_SV_COUNT; ++i) {
+		if ((pvt_data->sv[i].sv > 0) &&
+		    (pvt_data->sv[i].sv < 33)) {
 			tracked++;
+			tracked_sats |= BIT(pvt_data->sv[i].sv - 1);
+		}
+	}
 
-			if (pvt_data->sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_USED_IN_FIX) {
-				in_fix++;
-			}
+	if ((tracked_sats == 0) || (tracked_sats == prev_tracked_sats)) {
+		if (tracked_sats != prev_tracked_sats) {
+			prev_tracked_sats = tracked_sats;
+			LOG_DBG("Tracking no satellites");
+		}
 
-			if (pvt_data->sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_UNHEALTHY) {
-				unhealthy++;
+		return;
+	}
+
+	prev_tracked_sats = tracked_sats;
+	print_buf_len = snprintk(print_buf, sizeof(print_buf), "Tracking:  ");
+
+	for (size_t i = 0; i < 32; i++) {
+		if (tracked_sats & BIT(i)) {
+			print_buf_len +=
+				snprintk(&print_buf[print_buf_len - 1],
+					 sizeof(print_buf) - print_buf_len,
+					 "%d  ", i + 1);
+			if (print_buf_len < 0) {
+				LOG_ERR("Failed to print satellite stats");
+				break;
 			}
 		}
 	}
 
-	printk("Tracking: %d Using: %d Unhealthy: %d\n", tracked, in_fix, unhealthy);
+	LOG_INF("%s", log_strdup(print_buf));
 }
 
-static void print_fix_data(struct nrf_modem_gnss_pvt_data_frame *pvt_data)
+static void on_agps_needed(struct gps_agps_request request)
 {
-	printk("Latitude:   %.06f\n", pvt_data->latitude);
-	printk("Longitude:  %.06f\n", pvt_data->longitude);
-	printk("Altitude:   %.01f m\n", pvt_data->altitude);
-	printk("Accuracy:   %.01f m\n", pvt_data->accuracy);
-	printk("Speed:      %.01f m/s\n", pvt_data->speed);
-	printk("Heading:    %.01f deg\n", pvt_data->heading);
-	printk("Date:       %02u-%02u-%02u\n", pvt_data->datetime.year,
-					       pvt_data->datetime.month,
-					       pvt_data->datetime.day);
-	printk("Time (UTC): %02u:%02u:%02u\n", pvt_data->datetime.hour,
-					       pvt_data->datetime.minute,
-					       pvt_data->datetime.seconds);
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+	memcpy(&agps_request, &request, sizeof(agps_request));
+	/* AGPS data not expected, so move on to PGPS */
+	if (!nrf_cloud_agps_request_in_progress()) {
+		k_work_submit(&notify_pgps_work);
+	}
+#endif
 }
 
 static void gps_handler(const struct device *dev, struct gps_event *evt)
@@ -226,17 +390,15 @@ static void gps_handler(const struct device *dev, struct gps_event *evt)
 		break;
 	case GPS_EVT_AGPS_DATA_NEEDED:
 		LOG_INF("GPS_EVT_AGPS_DATA_NEEDED");
+		on_agps_needed(evt->agps_request);
 		break;
 	case GPS_EVT_PVT:
-		LOG_INF("GPS_EVT_PVT");
-		nrf_modem_gnss_read(&last_pvt, sizeof(last_pvt), NRF_MODEM_GNSS_DATA_PVT);
-		print_satellite_stats(&last_pvt);
-		if (last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-			print_fix_data(&last_pvt);
-		}
+		//LOG_INF("GPS_EVT_PVT");
+		print_satellite_stats(&evt->pvt);
 		break;
 	case GPS_EVT_PVT_FIX:
 		LOG_INF("GPS_EVT_PVT_FIX");
+		print_pvt_data(&evt->pvt);
 		break;
 	case GPS_EVT_NMEA_FIX:
 		LOG_INF("GPS_EVT_NMEA_FIX");
@@ -246,6 +408,7 @@ static void gps_handler(const struct device *dev, struct gps_event *evt)
 	}
 }
 
+#if TEST_FOTA
 static void http_fota_handler(const struct fota_download_evt *evt)
 {
 	LOG_DBG("evt: %d", evt->id);
@@ -286,6 +449,7 @@ static void http_fota_handler(const struct fota_download_evt *evt)
 		break;
 	}
 }
+#endif
 
 int set_led(const int state)
 {
@@ -414,6 +578,13 @@ int init(void)
 		return err;
 	}
 
+	err = at_notif_init();
+	if (err) {
+		LOG_ERR("Failed to initialize AT notifications, err %d", err);
+		return err;
+	}
+
+
 	gps_dev = device_get_binding("NRF9160_GPS");
 	if (gps_dev != NULL) {
 		err = gps_init(gps_dev, gps_handler);
@@ -508,11 +679,15 @@ static int connect_to_network(void)
 
 void main(void)
 {
+	int pgps_failure_count = 1;
+
 	LOG_INF("Starting \"%s\"..", log_strdup(CONFIG_REST_SAMPLE_NAME));
 
 	char rx_buf[REST_RX_BUF_SZ];
 	int agps_sz;
+#if TEST_LOCATION
 	struct nrf_cloud_cell_pos_result location;
+#endif
 	struct jwt_data jwt = {
 #if defined(CONFIG_REST_ID_SRC_INTERNAL_UUID)
 		.subject = NULL,
@@ -539,11 +714,8 @@ void main(void)
 	};
 	struct gps_agps_request agps = {
 		.utc = 1,
-		.sv_mask_ephe = 0xFFFFFFFF,
-		.sv_mask_alm = 0xFFFFFFFF,
-		.system_time_tow = 1,
-		.position = 1,
-		.integrity  = 1,
+		.sv_mask_ephe = 1,
+		.sv_mask_alm = 1,
 		.klobuchar = 1
 	};
 	struct nrf_cloud_rest_agps_result agps_result = {
@@ -551,16 +723,7 @@ void main(void)
 		.buf = NULL
 	};
 
-	struct gps_pgps_request pgps = {
-		.gps_day = 15103,
-		.prediction_count = 42,
-		.prediction_period_min = 420,
-		.gps_time_of_day = 0
-	};
-
 	struct nrf_cloud_rest_pgps_request pgps_request;
-
-	int agps_count = 0;
 
 	int err = init();
 
@@ -571,11 +734,40 @@ void main(void)
 	}
 
 	init_conn_stats();
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+	k_work_init(&manage_pgps_work, manage_pgps);
+	k_work_init(&notify_pgps_work, notify_pgps);
+#endif
 
 	err = connect_to_network();
 	if (err){
 		goto cleanup;
 	}
+
+#if defined(CONFIG_DATE_TIME)
+	date_time_update_async(date_time_event_handler);
+	LOG_INF("Waiting to get valid time..");
+	err = k_sem_take(&time_obtained_sem, K_MINUTES(5));
+	if (err) {
+		LOG_ERR("Failed to get time");
+		goto cleanup;
+	}
+	print_time();
+#endif
+
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+	struct nrf_cloud_pgps_init_param param = {
+		.event_handler = pgps_handler,
+		.storage_base = PM_MCUBOOT_SECONDARY_ADDRESS,
+		.storage_size = PM_MCUBOOT_SECONDARY_SIZE
+	};
+
+	err = nrf_cloud_pgps_init(&param);
+	if (err) {
+		LOG_ERR("nrf_cloud_pgps_init: %d", err);
+		goto cleanup;
+	}
+#endif
 
 	err = gps_start(gps_dev, &gps_cfg);
 	if (!err){
@@ -587,6 +779,13 @@ void main(void)
 	(void)do_jitp();
 
 retry:
+
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+pgps_wait:
+	LOG_INF("Waiting for PGPS request event..");
+	k_sem_take(&do_pgps_request_sem, K_FOREVER);
+#endif
+
 	err = modem_jwt_generate(&jwt);
 	if (err) {
 		LOG_ERR("Failed to generate JWT, err %d", err);
@@ -595,11 +794,13 @@ retry:
 	LOG_DBG("JWT:\n%s", log_strdup(jwt.jwt_buf));
 	rest_ctx.auth = jwt.jwt_buf;
 
+	query_conn_stats();
+
 	if (IS_ENABLED(CONFIG_REST_FOTA_ONLY)) {
 		goto fota_start;
+	} else if (IS_ENABLED(CONFIG_NRF_CLOUD_PGPS)) {
+		goto pgps_start;
 	}
-
-	query_conn_stats();
 
 	LOG_INF("\n******************* Locate API *******************");
 	size_t sem_cnt = k_sem_count_get(&cell_data_ready);
@@ -619,7 +820,7 @@ retry:
 	}
 
 	loc_req.net_info = &cell_data;
-#if 0
+#if TEST_LOCATION
 	err = nrf_cloud_rest_cell_pos_get(&rest_ctx, &loc_req, &location);
 	if (err) {
 		LOG_ERR("Cell Pos API call failed, error: %d", err);
@@ -630,18 +831,35 @@ retry:
 #endif
 
 pgps_start:
-#if 0
 	/* Exercise P-GPS API */
 	LOG_INF("\n********************* P-GPS API *********************");
 
-	pgps_request.pgps_req = &pgps;
-
-	err = nrf_cloud_rest_pgps_data_get(&rest_ctx, &pgps_request);
+	if (pgps_failure_count & 1) {
+		LOG_WRN("failing PGPS request on purpose; %d", pgps_failure_count);
+		err = -EIO;
+		pgps_failure_count++;
+	} else {
+		pgps_request.pgps_req = &pgps_req;
+		err = nrf_cloud_rest_pgps_data_get(&rest_ctx, &pgps_request);
+	}
 	if (err) {
 		LOG_ERR("P-GPS request failed, error: %d", err);
-	}
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+		nrf_cloud_pgps_request_reset();
 #endif
-agps_start:
+	} else {
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+		err = nrf_cloud_pgps_process(rest_ctx.response, rest_ctx.response_len);
+		if (err) {
+			LOG_ERR("P-GPS process failed, error: %d", err);
+			goto cleanup;
+		}
+#endif
+	}
+	(void)nrf_cloud_rest_disconnect(&rest_ctx);
+	goto pgps_wait;
+
+
 	/* Exercise A-GPS API */
 	LOG_INF("\n********************* A-GPS API *********************");
 	agps_print_enable(true);
@@ -683,20 +901,15 @@ agps_start:
 		 * gps_process_agps_data() or nrf_cloud_agps_process()
 		 */
 		LOG_INF("Successfully received A-GPS data");
-		agps_cloud_data_process(agps_result.buf, agps_result.agps_sz);
+		//gps_process_agps_data(agps_result.buf, agps_result.agps_sz);
 	}
 
 	k_free(agps_result.buf);
 	agps_result.buf = NULL;
 	query_conn_stats();
 
-	if (agps_count++ < 3) {
-		k_sleep(K_SECONDS(30));
-		goto agps_start;
-	}
-
 fota_start:
-#if 0
+#if TEST_FOTA
 	LOG_INF("\n******************* FOTA API *******************");
 
 	/* Exercise the FOTA API by checking for a job
@@ -753,6 +966,7 @@ fota_start:
 #endif
 
 cleanup:
+	deinit_conn_stats();
 	(void)nrf_cloud_rest_disconnect(&rest_ctx);
 	modem_jwt_free(jwt.jwt_buf);
 	jwt.jwt_buf = NULL;
