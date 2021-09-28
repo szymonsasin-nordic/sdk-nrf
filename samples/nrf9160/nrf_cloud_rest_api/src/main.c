@@ -837,11 +837,11 @@ pgps_start:
 	if (pgps_failure_count & 1) {
 		LOG_WRN("failing PGPS request on purpose; %d", pgps_failure_count);
 		err = -EIO;
-		pgps_failure_count++;
 	} else {
 		pgps_request.pgps_req = &pgps_req;
 		err = nrf_cloud_rest_pgps_data_get(&rest_ctx, &pgps_request);
 	}
+	pgps_failure_count++;
 	if (err) {
 		LOG_ERR("P-GPS request failed, error: %d", err);
 #if defined(CONFIG_NRF_CLOUD_PGPS)

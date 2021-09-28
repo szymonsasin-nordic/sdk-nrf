@@ -528,6 +528,9 @@ int nrf_cloud_pgps_find_prediction(struct nrf_cloud_pgps_prediction **prediction
 			LOG_WRN("Predictions not loaded yet");
 			return -ELOADING;
 		}
+		index.cur_pnum = 0xff;
+		state = PGPS_EXPIRED;
+		pgps_need_assistance = false; /* make sure we request it */
 		LOG_WRN("No data stored");
 		return -ENODATA;
 	}
