@@ -49,6 +49,9 @@ nRF9160
     * Removed GNSS socket API support from A-GPS and P-GPS.
     * Added support for sending data to a new bulk endpoint topic that is supported in nRF Cloud.
       A message published to the bulk topic is typically a combination of multiple messages.
+    * Fixed an issue with :kconfig:`CONFIG_NRF_CLOUD_PGPS_TRANSPORT_NONE` to ensure predictions will be properly stored.
+    * Added :c:func:`nrf_cloud_pgps_request_reset` so P-GPS application request handler can indicate failure to process the request.
+      This ensures the P-GPS library will try the request again.
 
   * :ref:`asset_tracker_v2` application:
 
