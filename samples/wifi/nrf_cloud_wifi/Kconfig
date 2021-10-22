@@ -1,0 +1,21 @@
+#
+# Copyright (c) 2020 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "nRF Cloud WiFi Sample Settings"
+
+config CLOUD_MESSAGE
+	string "Custom message published periodically to cloud"
+	default "{\"state\":{\"reported\":{\"message\":\"Hello Internet of Things!\"}}}"
+
+endmenu
+
+menu "Zephyr Kernel"
+source "Kconfig.zephyr"
+endmenu
+
+module = NRF_CLOUD_WIFI_SAMPLE
+module-str = nRF Cloud WiFi sample
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"

@@ -1107,7 +1107,11 @@ int nrf_cloud_rest_fota_execution_parse(const char *const response,
 	size_obj = cJSON_GetObjectItem(job_doc, NRF_CLOUD_FOTA_REST_KEY_SIZE);
 
 	if (!id_obj || !path_obj || !host_obj || !type_obj || !size_obj) {
-		ret = -EFTYPE;
+#if defined(CONFIG_SOC_ESP32)
+			ret = -EBADMSG;
+#else
+			ret = -EFTYPE;
+#endif
 		goto err_cleanup;
 	}
 

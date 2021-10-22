@@ -31,6 +31,8 @@ manifest:
       url-base: https://github.com/NordicSemiconductor
     - name: memfault
       url-base: https://github.com/memfault
+    - name: origin
+      url-base: https://github.com/plskeggs
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -94,6 +96,7 @@ manifest:
           - tinycrypt
           - tf-m-tests
           - zscilib
+          - hal_espressif
 
     # NCS repositories.
     #
@@ -141,8 +144,10 @@ manifest:
       - nrf-802154
     - name: cjson
       repo-path: sdk-cjson
+      remote: origin
       path: modules/lib/cjson
-      revision: c6af068b7f05207b28d68880740e4b9ec1e4b50a
+      revision: feature-libc-workaround
+      #revision: c6af068b7f05207b28d68880740e4b9ec1e4b50a
     - name: homekit
       repo-path: sdk-homekit
       revision: f7f38a36146678b49bc8170a238218a4264d24bd

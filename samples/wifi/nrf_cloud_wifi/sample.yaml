@@ -1,0 +1,6 @@
+sample:
+  name: nRF Cloud WiFi
+tests:
+  sample.board.esp32:
+    platform_allow: esp32
+    tags: esp32
