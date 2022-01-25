@@ -33,10 +33,13 @@ The public CoAP server used in this sample is Californium CoAP server (``coap://
 This server runs Eclipse Californium, which is an open source implementation of the CoAP protocol that is targeted at the development and testing of IoT applications.
 An nRF9160 DK is used as the CoAP client.
 
-This sample uses the resource **obs** (Californium observable resource) in the communication between the CoAP client and the public CoAP server.
+This sample uses the resource **obs** (Californium observable resource) in the communication between the CoAP client and the public CoAP server when it issues a CoAP GET request.
 The communication follows the standard request/response pattern and is based on the change in the state of the value of the resource.
-The sample queries one resource at a time.
-To configure other resources, use the Kconfig option :ref:`CONFIG_COAP_RESOURCE <CONFIG_COAP_RESOURCE>`.
+The sample queries or updates one resource at a time.
+It alternates sending a CoAP GET and a CoAP PUT request to the server.
+Other resources can be configured using the Kconfig option ``CONFIG_COAP_GET_RESOURCE``.
+
+This sample uses the resource configured using the Kconfig option ``CONFIG_COAP_PUT_RESOURCE`` for the CoAP PUT request.
 
 Configuration
 *************
@@ -63,8 +66,39 @@ CONFIG_COAP_SERVER_HOSTNAME - CoAP server hostname
 CONFIG_COAP_SERVER_PORT - CoAP server port
    This option sets the port for the CoAP server. Default is ``5683``.
 
+Optional Configurations
+***********************
+
+By default, this sample establishes an unencrypted UDP connection to the CoAP server on port 5683.
+
+Alternatively, it can be configured to use DTLS encryption with PSK (preshared keys) on port 5684.
+Note that the default CoAP test server does not support DTLS.
+Configure this sample option to enable DTLS:
+
+* :kconfig:`CONFIG_COAP_DTLS`
+
+There are two choices for DTLS encryption mechanisms.
+When you enable DTLS, you must apply the associated config overlay for one of them:
+
+#. Offloaded to the nRF9160 modem's UDP and DTLS stacks.
+#. UDP offloaded to the nRF9160 modem, and DTLS implemented on the application side using mbedTLS.
+
+The advantage of using mbedTLS is that it provides DTLS Connection ID support, which helps eliminate unnecessary network traffic.
+
+The following files are available:
+
+* :file:`overlay-mbedtls.conf` - Config overlay to use mbedTLS for DTLS.
+* :file:`overlay-offload-tls.conf` - Config overlay to use the nRF9160 modem for DTLS.
+* :file:`overlay-carrier.conf` - Config overlay for LWM2M carrier support.
+* :file:`overlay-debug.conf` - Config overlay for logging support.
+
 Building and running
 ********************
+
+To build this sample using an overlay, use the ``-DOVERLAY_CONFIG=overlay-file.conf`` option.
+For example:
+
+``west build -p -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG=overlay-mbedtls.conf``
 
 .. |sample path| replace:: :file:`samples/nrf9160/coap_client`
 
@@ -110,6 +144,7 @@ References
 **********
 
 `RFC 7252 - The Constrained Application Protocol`_
+`RFC 9146 - Connection Identifier for DTLS 1.2`_
 
 Dependencies
 ************

@@ -11,4 +11,5 @@ project(nrf-coap-client)
 
 # NORDIC SDK APP START
 target_sources(app PRIVATE src/main.c)
+target_sources_ifdef(CONFIG_COAP_DTLS app PRIVATE src/dtls.c)
 # NORDIC SDK APP END
