@@ -18,7 +18,11 @@ config COAP_SERVER_PORT
 	int "CoAP server port"
 	default 5683
 
-endmenu
+module = APP
+module-dep = LOG
+module-str = Log level for sample
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+endmenu # Application sample
 
 menu "Zephyr Kernel"
 source "Kconfig.zephyr"
