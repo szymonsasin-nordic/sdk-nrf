@@ -493,16 +493,22 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         signed_s1_target
         signed_s0_target
         )
-
+      # PETE FIX:
+      get_shared(s0_ver_b0 IMAGE ${s0_name} PROPERTY FW_INFO_FIRMWARE_VERSION)
+      get_shared(s1_ver_b0 IMAGE ${s1_name} PROPERTY FW_INFO_FIRMWARE_VERSION)
+      get_shared(s0_ver_mcub IMAGE ${s0_name} PROPERTY MCUBOOT_IMAGE_VERSION)
+      get_shared(s1_ver_mcub IMAGE ${s1_name} PROPERTY MCUBOOT_IMAGE_VERSION)
       generate_dfu_zip(
         OUTPUT ${PROJECT_BINARY_DIR}/dfu_mcuboot.zip
         BIN_FILES ${s0_bin_path} ${s1_bin_path}
         TYPE mcuboot
         SCRIPT_PARAMS
         "${s0_name}load_address=$<TARGET_PROPERTY:partition_manager,PM_S0_ADDRESS>"
+        "${s0_name}version_MCUBOOT=${s0_ver_mcub}"
+        "${s0_name}version_B0=${s0_ver_b0}"
         "${s1_name}load_address=$<TARGET_PROPERTY:partition_manager,PM_S1_ADDRESS>"
-        "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
-        "version_B0=${CONFIG_FW_INFO_FIRMWARE_VERSION}"
+        "${s1_name}version_MCUBOOT=${s1_ver_mcub}"
+        "${s1_name}version_B0=${s1_ver_b0}"
         )
     endif()
   endif(CONFIG_SIGN_IMAGES)
