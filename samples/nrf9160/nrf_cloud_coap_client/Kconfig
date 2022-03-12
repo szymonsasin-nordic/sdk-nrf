@@ -1,0 +1,40 @@
+#
+# Copyright (c) 2022 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "nRF Cloud CoAP client sample"
+
+config COAP_SERVER_HOSTNAME
+	string "CoAP server hostname"
+	default "californium.eclipseprojects.io"
+
+menuconfig COAP_DTLS
+	bool "CoAP client with DTLS support"
+	help
+	  If y, use together with either overlay-mbedtls.conf or
+	  overlay-offload-tls.conf.
+
+if COAP_DTLS
+
+config COAP_SECTAG
+	int "Security tag in which to store PSK"
+	default 1
+
+endif
+
+config COAP_SERVER_PORT
+	int "CoAP server port"
+	default 5684 if COAP_DTLS
+	default 5683
+
+module = NRF_CLOUD_COAP_CLIENT
+module-dep = LOG
+module-str = nRF Cloud CoAP Client Sample
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+endmenu # Application sample
+
+menu "Zephyr Kernel"
+source "Kconfig.zephyr"
+endmenu
