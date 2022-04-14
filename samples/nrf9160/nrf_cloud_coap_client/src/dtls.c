@@ -17,6 +17,7 @@
 #endif
 #if defined(CONFIG_MBEDTLS)
 #include <mbedtls/ssl.h>
+#include <mbedtls/debug.h>
 #endif
 #if defined(CONFIG_TLS_CREDENTIALS)
 #include <net/tls_credentials.h>
@@ -137,6 +138,10 @@ int client_dtls_init(int sock)
 	static const int ciphers[] = {
 		MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8, 0
 	};
+#endif
+
+#if defined(CONFIG_MBEDTLS_DEBUG_C)
+	mbedtls_debug_set_threshold(4);
 #endif
 
 	err = get_device_ip_address(d4_addr);
