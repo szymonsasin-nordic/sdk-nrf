@@ -140,10 +140,6 @@ int client_dtls_init(int sock)
 	};
 #endif
 
-#if defined(CONFIG_MBEDTLS_DEBUG_C)
-	mbedtls_debug_set_threshold(4);
-#endif
-
 	err = get_device_ip_address(d4_addr);
 	if (err) {
 		return err;
