@@ -90,7 +90,7 @@ static int provision_psk(void)
 	LOG_HEXDUMP_DBG(psk, psk_len, "psk");
 
 #if defined(CONFIG_NET_SOCKETS_OFFLOAD_TLS)
-	char psk_hex[64];
+	char psk_hex[65];
 
 	/* Convert PSK to a format accepted by the modem. */
 	psk_len = bin2hex(psk, psk_len, psk_hex, sizeof(psk_hex));
