@@ -146,7 +146,7 @@ int client_dtls_init(int sock)
 	}
 	printk("client addr %u.%u.%u.%u\n", d4_addr[0], d4_addr[1], d4_addr[2], d4_addr[3]);
 
-	printk("Provisioning PSK\n");
+	printk("Provisioning PSK to sectag %u\n", sectag);
 	err = provision_psk();
 	if (err) {
 		return err;
