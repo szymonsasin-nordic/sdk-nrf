@@ -121,7 +121,9 @@ manifest:
       path: nrfxlib
       #revision: v1.9.0
       ##revision: 95156cc9adc6b604e962296220f568eabbab6508
-      revision: pull/748/head
+      #revision: pull/748/head
+      remote: origin
+      revision: feature-mbedtls-debug-output-v1.9.0
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
