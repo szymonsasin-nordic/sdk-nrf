@@ -28,7 +28,7 @@ LOG_MODULE_REGISTER(nrf_cloud_coap_client, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVE
 #define APP_COAP_SEND_INTERVAL_MS 300000
 #define APP_COAP_RECEIVE_INTERVAL_MS 5000
 #define APP_COAP_CLOSE_THRESHOLD_MS 4000
-#define APP_COAP_CONNECTION_CHECK_MS 5000
+#define APP_COAP_CONNECTION_CHECK_MS 30000
 #define APP_COAP_INTERVAL_LIMIT 1
 #define APP_COAP_MAX_MSG_LEN 1280
 #define APP_COAP_VERSION 1
@@ -807,6 +807,8 @@ void main(void)
 	int err;
 	int received;
 	int i = 1;
+	int put_count = 1;
+	int get_count = 1;
 	bool reconnect = false;
 	uint8_t buffer[100];
 	size_t len;
@@ -865,7 +867,7 @@ void main(void)
 			len = sizeof(buffer);
 			encode_cbor_sensor(temp, ts, buffer, &len);
 
-			printk("\n%d. Calling client_put_send()\n", i);
+			printk("\n%d. Calling client_put_send()\n", put_count++);
 			if (client_put_send("temp", buffer, len) != 0) {
 				printk("Failed to send PUT request, exit...\n");
 				break;
@@ -880,7 +882,7 @@ void main(void)
 			get_payload = NULL;
 			len = 0;
 #endif
-			printk("\n%d. Calling client_get_send()\n", i);
+			printk("\n%d. Calling client_get_send()\n", get_count++);
 			if (client_get_send(get_res, get_payload, len) != 0) {
 				printk("Failed to send GET request, exit...\n");
 				break;

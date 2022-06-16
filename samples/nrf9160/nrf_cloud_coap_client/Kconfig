@@ -18,6 +18,16 @@ menuconfig COAP_DTLS
 
 if COAP_DTLS
 
+config COAP_DTLS_PSK_IDENTITY
+	string "DTLS Preshared Key Identity"
+	default ""
+	# default "n3526561061234690123456789abcdef"
+
+config COAP_DTLS_PSK_SECRET
+	string "DTLS Preshared Key Secret"
+	default ""
+	# default "000102030405060708090a0b0c0d0e0f"
+
 config COAP_SECTAG
 	int "Security tag in which to store PSK"
 	default 1

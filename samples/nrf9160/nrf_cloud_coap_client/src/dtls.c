@@ -75,13 +75,27 @@ static int get_device_ip_address(uint8_t *d4_addr)
 static int provision_psk(void)
 {
 	int ret;
-	const char *identity_fmt = "n%s0123456789abcdef";
 	static char identity[120];
 	uint16_t identity_len;
-	const char *psk = "000102030405060708090a0b0c0d0e0f";
+	const char *psk;
 	uint16_t psk_len;
 
-	snprintf(identity, sizeof(identity), identity_fmt,  mdm_param.device.imei.value_string);
+
+	if (strlen(CONFIG_COAP_DTLS_PSK_IDENTITY)) {
+		strncpy(identity, CONFIG_COAP_DTLS_PSK_IDENTITY, sizeof(identity) - 1);
+	} else {
+		const char *identity_fmt = "n%s0123456789abcdef";
+
+		snprintf(identity, sizeof(identity), identity_fmt,
+			 mdm_param.device.imei.value_string);
+	}
+
+	if (strlen(CONFIG_COAP_DTLS_PSK_SECRET)) {
+		psk = CONFIG_COAP_DTLS_PSK_SECRET;
+	} else {
+		psk = "000102030405060708090a0b0c0d0e0f";
+	}
+
 	identity_len = strlen(identity);
 
 	LOG_DBG("psk identity: %s len %u", log_strdup(identity), identity_len);
