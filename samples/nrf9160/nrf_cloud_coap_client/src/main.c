@@ -26,7 +26,7 @@
 LOG_MODULE_REGISTER(nrf_cloud_coap_client, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
 
 #define APP_COAP_SEND_INTERVAL_MS 300000
-#define APP_COAP_RECEIVE_INTERVAL_MS 5000
+#define APP_COAP_RECEIVE_INTERVAL_MS 100
 #define APP_COAP_CLOSE_THRESHOLD_MS 4000
 #define APP_COAP_CONNECTION_CHECK_MS 30000
 #define APP_COAP_INTERVAL_LIMIT 1
@@ -158,6 +158,7 @@ static int client_init(void)
 	sock = socket(AF_INET, SOCK_DGRAM | SOCK_NATIVE_TLS, IPPROTO_DTLS_1_2);
 #endif
 #endif
+	LOG_DBG("sock = %d", sock);
 	if (sock < 0) {
 		LOG_ERR("Failed to create CoAP socket: %d.", -errno);
 		return -errno;
@@ -165,6 +166,9 @@ static int client_init(void)
 
 #if defined(CONFIG_COAP_DTLS)
 	err = client_dtls_init(sock);
+	if (err < 0) {
+		return err;
+	}
 #endif
 	err = connect(sock, (struct sockaddr *)&server,
 		      sizeof(struct sockaddr_in));
@@ -507,7 +511,7 @@ static int client_get_send(const char *resource, uint8_t *buf, size_t len)
 	int err;
 	int i;
 	int num;
-	struct coap_packet request;
+	struct coap_packet request = {0};
 	uint8_t format = COAP_CONTENT_FORMAT_APP_CBOR;
 	uint16_t message_id = coap_next_id();
 	enum coap_msgtype msg_type = COAP_TYPE_CON;
@@ -555,7 +559,8 @@ static int client_get_send(const char *resource, uint8_t *buf, size_t len)
 
 	err = send(sock, request.data, request.offset, 0);
 	if (err < 0) {
-		LOG_ERR("Failed to send CoAP request, %d", -errno);
+		LOG_ERR("Failed to send CoAP request, errno %d, err %d, sock %d, request.data %p, request.offset %u",
+			-errno, err, sock, request.data, request.offset);
 		return -errno;
 	}
 
@@ -583,7 +588,7 @@ static int client_get_send(const char *resource, uint8_t *buf, size_t len)
 static int client_put_send(const char *resource, uint8_t *buf, size_t buf_len)
 {
 	int err;
-	struct coap_packet request;
+	struct coap_packet request = {0};
 	uint8_t format = COAP_CONTENT_FORMAT_APP_CBOR;
 	uint16_t message_id = coap_next_id();
 	enum coap_msgtype msg_type = COAP_TYPE_CON;
@@ -629,7 +634,8 @@ static int client_put_send(const char *resource, uint8_t *buf, size_t buf_len)
 
 	err = send(sock, request.data, request.offset, 0);
 	if (err < 0) {
-		LOG_ERR("Failed to send CoAP request, %d", -errno);
+		LOG_ERR("Failed to send CoAP request, errno %d, err %d, sock %d, request.data %p, request.offset %u",
+			-errno, err, sock, request.data, request.offset);
 		return -errno;
 	}
 

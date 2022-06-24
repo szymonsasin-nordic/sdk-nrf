@@ -171,17 +171,20 @@ int client_dtls_init(int sock)
 			 sizeof(CONFIG_COAP_SERVER_HOSTNAME));
 	if (err) {
 		printk("Error setting hostname: %d\n", errno);
+		return err;
 	}
 
 	err = setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST, &sectag, sizeof(sec_tag_t));
 	if (err) {
 		printk("Error setting sectag list: %d\n", errno);
+		return err;
 	}
 
 #if defined(RESTRICT_CIPHERS)
 	err = setsockopt(sock, SOL_TLS, TLS_CIPHERSUITE_LIST, ciphers, sizeof(ciphers));
 	if (err) {
 		printk("Error setting cipherlist: %d\n", errno);
+		return err;
 	}
 #endif
 #if defined(DUMP_CIPHERLIST)
