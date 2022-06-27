@@ -31,6 +31,8 @@ manifest:
       url-base: https://github.com/NordicSemiconductor
     - name: memfault
       url-base: https://github.com/memfault
+    - name: eivindj-nordic
+      url-base: https://github.com/eivindj-nordic
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -109,7 +111,8 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: 8a5ca3e0f953cfdb03aea4edff34db8fb952a280
+      remote: eivindj-nordic
+      revision: libmodem_2.0.1+_pete
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
