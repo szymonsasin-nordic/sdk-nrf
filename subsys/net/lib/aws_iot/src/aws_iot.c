@@ -590,6 +590,7 @@ static void mqtt_evt_handler(struct mqtt_client *const c,
 		}
 
 		atomic_set(&aws_iot_disconnected, 1);
+		atomic_set(&connection_poll_active, 0);
 		aws_iot_evt.type = AWS_IOT_EVT_DISCONNECTED;
 		aws_iot_notify_event(&aws_iot_evt);
 		break;
