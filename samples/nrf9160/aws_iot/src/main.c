@@ -24,6 +24,8 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT),
 		"This sample does not support LTE auto-init and connect");
 
 #define APP_TOPICS_COUNT CONFIG_AWS_IOT_APP_SUBSCRIPTION_LIST_COUNT
+#define APP_SUB_TOPIC_1 CONFIG_APP_SUBSCRIPTION_TOPIC_1
+#define APP_SUB_TOPIC_2 CONFIG_APP_SUBSCRIPTION_TOPIC_2
 
 static struct k_work_delayable shadow_update_work;
 static struct k_work_delayable connect_work;
@@ -34,6 +36,11 @@ static bool cloud_connected;
 static K_SEM_DEFINE(lte_connected, 0, 1);
 static K_SEM_DEFINE(date_time_obtained, 0, 1);
 
+#include <logging/log.h>
+LOG_MODULE_REGISTER(aws_iot_client, CONFIG_AWS_IOT_CLIENT_LOG_LEVEL);
+static int app_topics_publish(void);
+
+#if defined(CONFIG_APP_PUBLISH_DATA_TO_SHADOW) || defined(CONFIG_APP_PUBLISH_VER_TO_SHADOW)
 static int json_add_obj(cJSON *parent, const char *str, cJSON *item)
 {
 	cJSON_AddItemToObject(parent, str, item);
@@ -145,6 +152,7 @@ cleanup:
 
 	return err;
 }
+#endif
 
 static void connect_work_fn(struct k_work *work)
 {
@@ -174,9 +182,16 @@ static void shadow_update_work_fn(struct k_work *work)
 		return;
 	}
 
+#if defined(CONFIG_APP_PUBLISH_DATA_TO_SHADOW)
 	err = shadow_update(false);
 	if (err) {
 		printk("shadow_update, error: %d\n", err);
+	}
+#endif
+
+	err = app_topics_publish();
+	if (err) {
+		printk("Publishing application specific topics failed, error: %d", err);
 	}
 
 	printk("Next data publication in %d seconds\n",
@@ -188,12 +203,14 @@ static void shadow_update_work_fn(struct k_work *work)
 
 static void shadow_update_version_work_fn(struct k_work *work)
 {
+#if defined(CONFIG_APP_PUBLISH_VER_TO_SHADOW)
 	int err;
 
 	err = shadow_update(true);
 	if (err) {
 		printk("shadow_update, error: %d\n", err);
 	}
+#endif
 }
 
 static void print_received_data(const char *buf, const char *topic,
@@ -434,20 +451,59 @@ static void nrf_modem_lib_dfu_handler(void)
 static int app_topics_subscribe(void)
 {
 	int err;
-	static char custom_topic[75] = "my-custom-topic/example";
-	static char custom_topic_2[75] = "my-custom-topic/example_2";
+	struct aws_iot_topic_data topics_list[APP_TOPICS_COUNT];
 
-	const struct aws_iot_topic_data topics_list[APP_TOPICS_COUNT] = {
-		[0].str = custom_topic,
-		[0].len = strlen(custom_topic),
-		[1].str = custom_topic_2,
-		[1].len = strlen(custom_topic_2)
-	};
+#if (APP_TOPICS_COUNT > 0)
+	static char custom_topic[] = CONFIG_APP_SUBSCRIPTION_TOPIC_1;
 
+	topics_list[0].type = 0;
+	topics_list[0].str = custom_topic;
+	topics_list[0].len = strlen(custom_topic);
+#endif
+#if (APP_TOPICS_COUNT > 1)
+	static char custom_topic_2[] = CONFIG_APP_SUBSCRIPTION_TOPIC_2;
+
+	topics_list[1].type = 0;
+	topics_list[1].str = custom_topic_2;
+	topics_list[1].len = strlen(custom_topic_2);
+#endif
+
+	for (int i = 0; i < APP_TOPICS_COUNT; i++) {
+		printk("Subscribing to %s", topics_list[i].str);
+	}
 	err = aws_iot_subscription_topics_add(topics_list,
 					      ARRAY_SIZE(topics_list));
 	if (err) {
 		printk("aws_iot_subscription_topics_add, error: %d\n", err);
+	}
+
+	return err;
+}
+
+static int app_topics_publish(void)
+{
+	int err = 0;
+	static char custom_topic[] = CONFIG_APP_PUBLISH_TOPIC;
+	static char message[] = CONFIG_APP_PUBLISH_MESSAGE;
+	static unsigned int message_id = 3579;
+	const struct aws_iot_data data = {
+		.topic.type = AWS_IOT_SHADOW_TOPIC_NONE,
+		.topic.str = custom_topic,
+		.topic.len = strlen(custom_topic),
+		.ptr = message,
+		.len = strlen(message),
+		.qos = MQTT_QOS_0_AT_MOST_ONCE,
+		.message_id = message_id++,
+		.dup_flag = 0,
+		.retain_flag = 0
+	};
+
+	if (strlen(custom_topic)) {
+		printk("publishing to %s", custom_topic);
+		err = aws_iot_send(&data);
+		if (err) {
+			printk("aws_iot_send, error: %d\n", err);
+		}
 	}
 
 	return err;

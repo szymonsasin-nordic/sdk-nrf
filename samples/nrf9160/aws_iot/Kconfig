@@ -18,8 +18,38 @@ config CONNECTION_RETRY_TIMEOUT_SECONDS
 	int "Number of seconds between each AWS IoT connection retry"
 	default 30
 
+config APP_SUBSCRIPTION_TOPIC_1
+	string "First topic to subscribe to"
+	default "my-custom-topic/example"
+
+config APP_SUBSCRIPTION_TOPIC_2
+	string "Second topic to subscribe to"
+	default "my-custom-topic/example_2"
+
+config APP_PUBLISH_TOPIC
+	string "App topic to publish to"
+	default ""
+
+config APP_PUBLISH_MESSAGE
+	string "Message to publish to app topic"
+	default ""
+
+config APP_PUBLISH_VER_TO_SHADOW
+	bool "Publish version to shadow to verify FOTA update worked"
+	default y
+
+config APP_PUBLISH_DATA_TO_SHADOW
+	bool "Send data to shadow every PUBLICATION_INTERVAL_SECONDS"
+	default y
+
 endmenu
 
 menu "Zephyr Kernel"
 source "Kconfig.zephyr"
+
 endmenu
+
+module = AWS_IOT_CLIENT
+module-str = AWS IoT Client
+source "subsys/logging/Kconfig.template.log_config"
+
