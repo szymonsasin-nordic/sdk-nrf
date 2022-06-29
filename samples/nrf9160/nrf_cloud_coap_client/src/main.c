@@ -86,6 +86,7 @@ static const char *coap_types[] =
 
 int client_print_connection_id(int sock, bool verbose);
 int client_dtls_init(int sock);
+int provision_psk(void);
 
 #if defined(CONFIG_NRF_MODEM_LIB)
 /**@brief Recoverable modem library error. */
@@ -132,7 +133,7 @@ static int server_resolve(void)
 
 	inet_ntop(AF_INET, &server4->sin_addr.s_addr, ipv4_addr,
 		  sizeof(ipv4_addr));
-	printk("IPv4 Address found %s\n", ipv4_addr);
+	printk("Server IP address:   %s\n", ipv4_addr);
 
 	/* Free the address. */
 	freeaddrinfo(result);
@@ -832,6 +833,11 @@ void main(void)
 	printk("The nRF Cloud CoAP client sample started\n");
 
 	sys_dlist_init(&con_messages);
+
+	err = provision_psk();
+	if (err) {
+		return;
+	}
 
 	modem_configure();
 

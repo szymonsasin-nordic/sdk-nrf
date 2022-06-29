@@ -40,7 +40,7 @@ static sec_tag_t sectag = CONFIG_COAP_SECTAG;
 #if defined(CONFIG_MODEM_INFO)
 static struct modem_param_info mdm_param;
 
-static int get_device_ip_address(uint8_t *d4_addr)
+static int get_modem_info(void)
 {
 	int err;
 
@@ -49,20 +49,45 @@ static int get_device_ip_address(uint8_t *d4_addr)
 		printk("Could not init modem info: %d\n", err);
 		return err;
 	}
-	err = modem_info_params_init(&mdm_param);
-	if (err) {
-		printk("Could not get modem info: %d\n", err);
+
+	err = modem_info_string_get(MODEM_INFO_IMEI,
+				    mdm_param.device.imei.value_string,
+				    MODEM_INFO_MAX_RESPONSE_SIZE);
+	if (err <= 0) {
+		printk("Could not get IMEI: %d\n", err);
 		return err;
 	}
 
-	err = modem_info_params_get(&mdm_param);
-	if (err) {
-		printk("Could not get modem params: %d\n", err);
+	err = modem_info_string_get(MODEM_INFO_FW_VERSION,
+				    mdm_param.device.modem_fw.value_string,
+				    MODEM_INFO_MAX_RESPONSE_SIZE);
+	if (err <= 0) {
+		printk("Could not get mfw ver: %d\n", err);
 		return err;
 	}
-	LOG_DBG("nRF Connect SDK version: %s", mdm_param.device.app_version);
-	LOG_DBG("Modem FW version:        %s", mdm_param.device.modem_fw.value_string);
-	LOG_DBG("IMEI:                    %s", mdm_param.device.imei.value_string);
+
+	printk("IMEI:                %s\n", mdm_param.device.imei.value_string);
+	printk("Modem FW version:    %s\n", mdm_param.device.modem_fw.value_string);
+
+	return 0;
+}
+
+static int get_device_ip_address(uint8_t *d4_addr)
+{
+	int err;
+
+	err = modem_info_init();
+	if (err) {
+		return err;
+	}
+
+	err = modem_info_string_get(MODEM_INFO_IP_ADDRESS,
+				    mdm_param.network.ip_address.value_string,
+				    MODEM_INFO_MAX_RESPONSE_SIZE);
+	if (err <= 0) {
+		printk("Could not get IP addr: %d\n", err);
+		return err;
+	}
 
 	err = inet_pton(AF_INET, mdm_param.network.ip_address.value_string, d4_addr);
 	if (err == 1) {
@@ -72,7 +97,7 @@ static int get_device_ip_address(uint8_t *d4_addr)
 }
 #endif /* CONFIG_MODEM_INFO */
 
-static int provision_psk(void)
+int provision_psk(void)
 {
 	int ret;
 	static char identity[120];
@@ -80,6 +105,13 @@ static int provision_psk(void)
 	const char *psk;
 	uint16_t psk_len;
 
+	printk("Provisioning sectag: %u\n", sectag);
+
+	/* get IMEI so we can construct the PSK identity */
+	ret = get_modem_info();
+	if (ret) {
+		return ret;
+	}
 
 	if (strlen(CONFIG_COAP_DTLS_PSK_IDENTITY)) {
 		strncpy(identity, CONFIG_COAP_DTLS_PSK_IDENTITY, sizeof(identity) - 1);
@@ -98,7 +130,7 @@ static int provision_psk(void)
 
 	identity_len = strlen(identity);
 
-	LOG_DBG("psk identity: %s len %u", log_strdup(identity), identity_len);
+	printk("PSK identity:        %s len %u\n", identity, identity_len);
 
 	psk_len = strlen(psk);
 	LOG_HEXDUMP_DBG(psk, psk_len, "psk");
@@ -130,7 +162,7 @@ static int provision_psk(void)
 			(int)MODEM_KEY_MGMT_CRED_TYPE_IDENTITY, ret);
 	}
 exit:
-	lte_lc_connect();
+
 #else
 	ret = tls_credential_add(sectag, TLS_CREDENTIAL_PSK, psk, psk_len);
 	if (ret) {
@@ -158,13 +190,8 @@ int client_dtls_init(int sock)
 	if (err) {
 		return err;
 	}
-	printk("client addr %u.%u.%u.%u\n", d4_addr[0], d4_addr[1], d4_addr[2], d4_addr[3]);
+	printk("Client IP address:   %u.%u.%u.%u\n", d4_addr[0], d4_addr[1], d4_addr[2], d4_addr[3]);
 
-	printk("Provisioning PSK to sectag %u\n", sectag);
-	err = provision_psk();
-	if (err) {
-		return err;
-	}
 	printk("Setting socket options\n");
 
 	err = setsockopt(sock, SOL_TLS, TLS_HOSTNAME, CONFIG_COAP_SERVER_HOSTNAME,
