@@ -29,6 +29,8 @@
 LOG_MODULE_REGISTER(esp32_wifi_sta, CONFIG_NRF_CLOUD_WIFI_SAMPLE_LOG_LEVEL);
 
 #define SEC_TAG CONFIG_NRF_CLOUD_SEC_TAG
+#define TEMP_ID "TEMP"
+#define HUMID_ID "HUMID"
 
 static K_SEM_DEFINE(wifi_connected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
@@ -114,6 +116,12 @@ static void cloud_handler(const struct nrf_cloud_evt *evt)
 		break;
 	case NRF_CLOUD_EVT_ERROR:
 		LOG_ERR("NRF_CLOUD_EVT_ERROR: %d", evt->status);
+		break;
+	case NRF_CLOUD_EVT_FOTA_START:
+		LOG_INF("NRF_CLOUD_EVT_FOTA_START: %d", evt->status);
+		break;
+	case NRF_CLOUD_EVT_FOTA_ERROR:
+		LOG_ERR("NRF_CLOUD_FOTA_ERROR: %d", evt->status);
 		break;
 	}
 }
@@ -225,6 +233,26 @@ static int send_service_info(void)
 	return nrf_cloud_shadow_device_status_update(&device_status);
 }
 
+/* accumulate random values in the range of +/- scale */
+void simulate_sensor_data(float *sensor_value, float scale)
+{
+	*sensor_value += (rand() - RAND_MAX / 2) * scale / (RAND_MAX / 2);
+}
+
+/* on ESP32, we have to use the Zephyr minimal libc instead of
+ * newlib due to a known incompatibility, so we don't get
+ * floating point printf(); fake it for now
+ */
+void render_sensor_data(char *output, size_t len, const char *id, float sensor_value)
+{
+	/* printf formatter for JSON message to send containing fake temperature data */
+	static const char data_fmt[] = "{\"appId\":\"%s\", \"messageType\":\"DATA\","
+				       " \"data\":\"%d.%d\"}";
+
+	snprintf(output, len, data_fmt, id, (int)sensor_value,
+		 ((int)(sensor_value * 10)) % 10);
+}
+
 void main(void)
 {
 	struct net_if *iface;
@@ -333,9 +361,6 @@ void main(void)
 		LOG_INF("Service info sent.");
 	}
 
-	/* printf formatter for JSON message to send containing fake temperature data */
-	const char data_fmt[] = "{\"appId\":\"TEMP\", \"messageType\":\"DATA\","
-				" \"data\":\"%d.%d\"}";
 	char data[100];
 	struct nrf_cloud_tx_data msg = {
 		.topic_type = NRF_CLOUD_TOPIC_MESSAGE,
@@ -343,36 +368,29 @@ void main(void)
 		.data.ptr = data
 	};
 	float temp = 10.0;
+	float humid = 25.0;
 
 	do
 	{
-		/* on ESP32, we have to use the Zephyr minimal libc instead of
-		 * newlib due to a known incompatibility, so we don't get
-		 * floating point printf(); fake it for now
-		 */
-		snprintf(data, sizeof(data), data_fmt, (int)temp,
-			 ((int)(temp * 10)) % 10);
-		temp += (rand() - RAND_MAX / 2) * 0.5f / (RAND_MAX / 2);
+		simulate_sensor_data(&temp, 0.5f);
+		render_sensor_data(data, sizeof(data), TEMP_ID, temp);
 		msg.data.len = strlen(data);
 
 		LOG_INF("Sending %s to nRF Cloud...", log_strdup(data));
 
 		err = nrf_cloud_send(&msg);
+		if (!err) {
+			simulate_sensor_data(&humid, 0.1f);
+			render_sensor_data(data, sizeof(data), HUMID_ID, humid);
+			msg.data.len = strlen(data);
+
+			LOG_INF("Sending %s to nRF Cloud...", log_strdup(data));
+
+			err = nrf_cloud_send(&msg);
+		}
 		if (err) {
 			LOG_ERR("Error sending message to cloud: %d", err);
 			k_sleep(K_SECONDS(1));
-
-#if 0
-			k_sem_reset(&wifi_connected);
-			LOG_INF("Reconnecting to WiFi...");
-			ret = esp_wifi_connect();
-			if (ret != ESP_OK) {
-				LOG_ERR("Connection failed: %d", ret);
-				break;
-			}
-			k_sem_take(&wifi_connected, K_FOREVER);
-			LOG_INF("Connected.");
-#endif
 
 			k_sem_reset(&cloud_ready);
 			LOG_INF("Reconnecting to nRF Cloud...");

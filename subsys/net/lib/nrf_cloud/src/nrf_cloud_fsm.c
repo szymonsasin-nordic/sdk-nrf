@@ -527,7 +527,11 @@ static int cell_pos_cb_send(const char *const rx_buf)
 		/* ret == 1 indicates that no cell pos data was found, send to app */
 	}
 #endif
+#if defined(CONFIG_SOC_ESP32)
+	return -EBADMSG;
+#else
 	return -EFTYPE;
+#endif
 }
 
 static int dc_rx_data_handler(const struct nct_evt *nct_evt)
