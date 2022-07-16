@@ -42,6 +42,14 @@ config APP_PUBLISH_DATA_TO_SHADOW
 	bool "Send data to shadow every PUBLICATION_INTERVAL_SECONDS"
 	default y
 
+config APP_STAGE
+	string "nRF Cloud stage"
+	default "prod"
+
+config APP_TENANT
+	string "User tenant ID"
+	default ""
+
 endmenu
 
 menu "Zephyr Kernel"

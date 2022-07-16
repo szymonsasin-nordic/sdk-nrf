@@ -31,6 +31,8 @@ static struct k_work_delayable shadow_update_work;
 static struct k_work_delayable connect_work;
 static struct k_work shadow_update_version_work;
 
+#define TOPIC_LENGTH_LIMIT 50
+
 static bool cloud_connected;
 
 static K_SEM_DEFINE(lte_connected, 0, 1);
@@ -244,7 +246,11 @@ void aws_iot_event_handler(const struct aws_iot_evt *const evt)
 {
 	switch (evt->type) {
 	case AWS_IOT_EVT_CONNECTING:
-		printk("AWS_IOT_EVT_CONNECTING\n");
+		if (evt->data.err == AWS_IOT_CONNECT_RES_SUCCESS) {
+			printk("AWS_IOT_EVT_CONNECTING\n");
+		} else {
+			printk("AWS_IOT_EVT_CONNECTING FAILED: %d\n", evt->data.err);
+		}
 		break;
 	case AWS_IOT_EVT_CONNECTED:
 		printk("AWS_IOT_EVT_CONNECTED\n");
@@ -454,22 +460,38 @@ static int app_topics_subscribe(void)
 	struct aws_iot_topic_data topics_list[APP_TOPICS_COUNT];
 
 #if (APP_TOPICS_COUNT > 0)
-	static char custom_topic[] = CONFIG_APP_SUBSCRIPTION_TOPIC_1;
+	static char custom_topic[256];
+
+	snprintf(custom_topic, sizeof(custom_topic), CONFIG_APP_SUBSCRIPTION_TOPIC_1,
+		 CONFIG_APP_STAGE, CONFIG_APP_TENANT, CONFIG_AWS_IOT_CLIENT_ID_STATIC);
 
 	topics_list[0].type = 0;
 	topics_list[0].str = custom_topic;
 	topics_list[0].len = strlen(custom_topic);
+	if (topics_list[0].len > TOPIC_LENGTH_LIMIT) {
+		printk("ERROR: topic %s is too long! %d > %d\n", custom_topic,
+		       topics_list[0].len, TOPIC_LENGTH_LIMIT);
+		return -E2BIG;
+	}
 #endif
 #if (APP_TOPICS_COUNT > 1)
-	static char custom_topic_2[] = CONFIG_APP_SUBSCRIPTION_TOPIC_2;
+	static char custom_topic_2[256];
+
+	snprintf(custom_topic_2, sizeof(custom_topic_2), CONFIG_APP_SUBSCRIPTION_TOPIC_2,
+		 CONFIG_APP_STAGE, CONFIG_APP_TENANT, CONFIG_AWS_IOT_CLIENT_ID_STATIC);
 
 	topics_list[1].type = 0;
 	topics_list[1].str = custom_topic_2;
 	topics_list[1].len = strlen(custom_topic_2);
+	if (topics_list[1].len > TOPIC_LENGTH_LIMIT) {
+		printk("ERROR: topic %s is too long! %d > %d\n", custom_topic_2,
+		       topics_list[1].len, TOPIC_LENGTH_LIMIT);
+		return -E2BIG;
+	}
 #endif
 
 	for (int i = 0; i < APP_TOPICS_COUNT; i++) {
-		printk("Subscribing to %s", topics_list[i].str);
+		printk("Subscribing to %s\n", topics_list[i].str);
 	}
 	err = aws_iot_subscription_topics_add(topics_list,
 					      ARRAY_SIZE(topics_list));
@@ -483,13 +505,11 @@ static int app_topics_subscribe(void)
 static int app_topics_publish(void)
 {
 	int err = 0;
-	static char custom_topic[] = CONFIG_APP_PUBLISH_TOPIC;
+	static char custom_topic[256];
 	static char message[] = CONFIG_APP_PUBLISH_MESSAGE;
 	static unsigned int message_id = 3579;
-	const struct aws_iot_data data = {
+	struct aws_iot_data data = {
 		.topic.type = AWS_IOT_SHADOW_TOPIC_NONE,
-		.topic.str = custom_topic,
-		.topic.len = strlen(custom_topic),
 		.ptr = message,
 		.len = strlen(message),
 		.qos = MQTT_QOS_0_AT_MOST_ONCE,
@@ -498,8 +518,20 @@ static int app_topics_publish(void)
 		.retain_flag = 0
 	};
 
-	if (strlen(custom_topic)) {
-		printk("publishing to %s", custom_topic);
+	snprintf(custom_topic, sizeof(custom_topic), CONFIG_APP_PUBLISH_TOPIC,
+		 CONFIG_APP_STAGE, CONFIG_APP_TENANT, CONFIG_AWS_IOT_CLIENT_ID_STATIC);
+
+	data.topic.str = custom_topic;
+	data.topic.len = strlen(custom_topic);
+
+	if (data.topic.len > TOPIC_LENGTH_LIMIT) {
+		printk("ERROR: topic %s is too long! %d > %d\n", custom_topic,
+		       data.topic.len, TOPIC_LENGTH_LIMIT);
+		return -E2BIG;
+	}
+
+	if (data.topic.len) {
+		printk("publishing to %s\n", custom_topic);
 		err = aws_iot_send(&data);
 		if (err) {
 			printk("aws_iot_send, error: %d\n", err);
@@ -552,15 +584,6 @@ void main(void)
 		       err);
 	}
 
-	/** Subscribe to customizable non-shadow specific topics
-	 *  to AWS IoT backend.
-	 */
-	err = app_topics_subscribe();
-	if (err) {
-		printk("Adding application specific topics failed, error: %d\n",
-			err);
-	}
-
 	work_init();
 #if defined(CONFIG_NRF_MODEM_LIB)
 	modem_configure();
@@ -581,5 +604,16 @@ void main(void)
 
 	/* Postpone connecting to AWS IoT until date time has been obtained. */
 	k_sem_take(&date_time_obtained, K_FOREVER);
+
+
+	/** Subscribe to customizable non-shadow specific topics
+	 *  to AWS IoT backend.
+	 */
+	err = app_topics_subscribe();
+	if (err) {
+		printk("Adding application specific topics failed, error: %d\n",
+			err);
+	}
+
 	k_work_schedule(&connect_work, K_NO_WAIT);
 }
