@@ -1,0 +1,113 @@
+<apnreport>
+  <awsiotdeviceadvisorversion>1.0.0</awsiotdeviceadvisorversion>
+  <signature>1c9684980536e7d3419e3f37a37c101c28cdd0813c98b9d8b7febc7bd521fa3b</signature>
+  <keyname>b97f6e51-55bc-4afb-abc3-6cb572a87f71</keyname>
+  <session>
+    <region>us-east-1</region>
+    <suiterunid>1slq28kyg980</suiterunid>
+    <suitedefinition>
+      <id>62oobeaaimku</id>
+      <version>v8</version>
+    </suitedefinition>
+    <starttime>2022-07-16T00:49:17.267Z</starttime>
+    <endtime>2022-07-16T00:53:22.829Z</endtime>
+  </session>
+  <awsproduct>
+    <name>AWS IoT Core</name>
+    <version/>
+    <features>
+      <features name="AwsIotCoreBasic" value="supported" type="required"/>
+    </features>
+  </awsproduct>
+  <device>
+    <sku>nRF6943</sku>
+    <name>nRF6943</name>
+    <thingarn>arn:aws:iot:us-east-1:680502709288:thing/nRF6943</thingarn>
+    <certificatearn>arn:aws:iot:us-east-1:680502709288:cert/a0f81c5b89a1ef9e3d3d815e066b7e047d29e26e128952ed8e7c9ecb5ce27977</certificatearn>
+    <features/>
+  </device>
+  <report>
+    <testcase>
+      <name>TLS Incorrect Subject Name Server Cert</name>
+      <testcasedefinition>
+        <id>TLS_Incorrect_Subject_Name_Server_Cert</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-16T00:52:34.371Z</starttime>
+      <endtime>2022-07-16T00:52:49.915Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>MQTT Subscribe</name>
+      <testcasedefinition>
+        <id>MQTT_Subscribe</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+        <item key="TOPIC_LIST_FOR_SUBSCRIPTION_VALIDATION">
+          <listitem>prod/e07f25b0/m/nRF6943</listitem>
+        </item>
+      </configuration>
+      <starttime>2022-07-16T00:50:17.945Z</starttime>
+      <endtime>2022-07-16T00:51:27.774Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>TLS Unsecure Server Cert</name>
+      <testcasedefinition>
+        <id>TLS_Unsecure_Server_Cert</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-16T00:52:23.588Z</starttime>
+      <endtime>2022-07-16T00:52:33.586Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>TLS Connect</name>
+      <testcasedefinition>
+        <id>TLS_Connect</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-16T00:52:01.643Z</starttime>
+      <endtime>2022-07-16T00:52:19.037Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>MQTT Publish</name>
+      <testcasedefinition>
+        <id>MQTT_Publish</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+        <item key="TOPIC_FOR_PUBLISH_VALIDATION">prod/e07f25b0/m/nRF6943</item>
+      </configuration>
+      <starttime>2022-07-16T00:51:32.511Z</starttime>
+      <endtime>2022-07-16T00:51:57.052Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>MQTT Connect</name>
+      <testcasedefinition>
+        <id>MQTT_Connect</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-16T00:49:38.518Z</starttime>
+      <endtime>2022-07-16T00:50:17.119Z</endtime>
+      <status>Pass</status>
+    </testcase>
+  </report>
+</apnreport>

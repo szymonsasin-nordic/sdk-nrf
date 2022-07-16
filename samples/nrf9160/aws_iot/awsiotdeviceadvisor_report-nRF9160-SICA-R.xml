@@ -1,0 +1,113 @@
+<apnreport>
+  <awsiotdeviceadvisorversion>1.0.0</awsiotdeviceadvisorversion>
+  <signature>79c28c81900bbc4671639c1006535c2d051e2510124a7bc7e89d7e6a0274707c</signature>
+  <keyname>7746429f-75a1-4c62-b85e-6f16392c143f</keyname>
+  <session>
+    <region>us-east-1</region>
+    <suiterunid>zba6xawic92b</suiterunid>
+    <suitedefinition>
+      <id>62oobeaaimku</id>
+      <version>v3</version>
+    </suitedefinition>
+    <starttime>2022-07-15T23:12:52.706Z</starttime>
+    <endtime>2022-07-15T23:17:06.564Z</endtime>
+  </session>
+  <awsproduct>
+    <name>AWS IoT Core</name>
+    <version/>
+    <features>
+      <features name="AwsIotCoreBasic" value="supported" type="required"/>
+    </features>
+  </awsproduct>
+  <device>
+    <sku>nRF9160-SICA-R</sku>
+    <name>nRF9160-SICA-R</name>
+    <thingarn>arn:aws:iot:us-east-1:680502709288:thing/nRF9160-SICA-R</thingarn>
+    <certificatearn>arn:aws:iot:us-east-1:680502709288:cert/1d23465ddf8a2ccd416ca77e2da3fdf6c12e34ca4e344992e07661ea38fddf1f</certificatearn>
+    <features/>
+  </device>
+  <report>
+    <testcase>
+      <name>MQTT Connect</name>
+      <testcasedefinition>
+        <id>MQTT_Connect</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-15T23:12:54.432Z</starttime>
+      <endtime>2022-07-15T23:15:22.248Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>MQTT Publish</name>
+      <testcasedefinition>
+        <id>MQTT_Publish</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+        <item key="TOPIC_FOR_PUBLISH_VALIDATION">prod/e07f25b0/m/nRF9160-SICA-R</item>
+      </configuration>
+      <starttime>2022-07-15T23:15:42.338Z</starttime>
+      <endtime>2022-07-15T23:16:08.638Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>TLS Incorrect Subject Name Server Cert</name>
+      <testcasedefinition>
+        <id>TLS_Incorrect_Subject_Name_Server_Cert</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-15T23:16:48.53Z</starttime>
+      <endtime>2022-07-15T23:17:01.177Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>MQTT Subscribe</name>
+      <testcasedefinition>
+        <id>MQTT_Subscribe</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+        <item key="TOPIC_LIST_FOR_SUBSCRIPTION_VALIDATION">
+          <listitem>prod/e07f25b0/m/nRF9160-SICA-R</listitem>
+        </item>
+      </configuration>
+      <starttime>2022-07-15T23:15:27.328Z</starttime>
+      <endtime>2022-07-15T23:15:41.34Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>TLS Connect</name>
+      <testcasedefinition>
+        <id>TLS_Connect</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-15T23:16:09.417Z</starttime>
+      <endtime>2022-07-15T23:16:30.455Z</endtime>
+      <status>Pass</status>
+    </testcase>
+    <testcase>
+      <name>TLS Unsecure Server Cert</name>
+      <testcasedefinition>
+        <id>TLS_Unsecure_Server_Cert</id>
+        <version>0.0.0</version>
+      </testcasedefinition>
+      <configuration>
+        <item key="EXECUTION_TIMEOUT">600</item>
+      </configuration>
+      <starttime>2022-07-15T23:16:31.314Z</starttime>
+      <endtime>2022-07-15T23:16:44.301Z</endtime>
+      <status>Pass</status>
+    </testcase>
+  </report>
+</apnreport>
