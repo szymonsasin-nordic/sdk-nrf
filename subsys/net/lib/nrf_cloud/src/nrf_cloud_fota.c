@@ -1220,7 +1220,7 @@ send_ack:
 		if (ble_id) {
 #if defined(CONFIG_NRF_CLOUD_FOTA_BLE_DEVICES)
 			ble_job.error = NRF_CLOUD_FOTA_ERROR_BAD_JOB_INFO;
-			(void)nrf_cloud_fota_ble_job_update(ble_job, NRF_CLOUD_FOTA_REJECTED);
+			(void)nrf_cloud_fota_ble_job_update(&ble_job, NRF_CLOUD_FOTA_REJECTED);
 #endif
 		} else {
 			current_fota.error = NRF_CLOUD_FOTA_ERROR_BAD_JOB_INFO;
