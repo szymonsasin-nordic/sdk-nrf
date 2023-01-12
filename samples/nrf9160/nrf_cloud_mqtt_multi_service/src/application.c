@@ -12,6 +12,7 @@
 #include <date_time.h>
 #include <cJSON.h>
 #include <stdio.h>
+#include <dk_buttons_and_leds.h>
 
 #include "nrf_cloud_codec.h"
 #include "application.h"
@@ -22,6 +23,15 @@
 #include "led_control.h"
 
 LOG_MODULE_REGISTER(application, CONFIG_MQTT_MULTI_SERVICE_LOG_LEVEL);
+
+#define BUTTON_TEST_GOOD 1
+#define BUTTON_TEST_BAD 2
+#define INJECT_DELAY_MS 1000
+int nrf_cloud_injection_test(int delay_per_prediction_ms, bool bad_button_pressed);
+
+/* Semaphore to indicate a button has been pressed */
+static K_SEM_DEFINE(button_press_sem, 0, 1);
+static atomic_t bad_button_pressed = false;
 
 /* Timer used to time the sensor sampling rate. */
 static K_TIMER_DEFINE(sensor_sample_timer, NULL, NULL);
@@ -287,8 +297,31 @@ cleanup:
 	cJSON_Delete(msg_obj);
 }
 
+static void button_handler(uint32_t button_states, uint32_t has_changed)
+{
+	if (has_changed & button_states & BIT(BUTTON_TEST_GOOD - 1)) {
+		LOG_DBG("Good button %d pressed", BUTTON_TEST_GOOD);
+		bad_button_pressed = false;
+		k_sem_give(&button_press_sem);
+	} else if (has_changed & button_states & BIT(BUTTON_TEST_BAD - 1)) {
+		LOG_DBG("Bad button %d pressed", BUTTON_TEST_BAD);
+		bad_button_pressed = true;
+		k_sem_give(&button_press_sem);
+	}
+}
+
 void main_application_thread_fn(void)
 {
+	int err;
+
+	/* Init the button */
+	err = dk_buttons_init(button_handler);
+	if (err) {
+		LOG_ERR("Failed to initialize button: error: %d", err);
+		return;
+	}
+	LOG_INF("Press button %d to test all P-GPS predictions", BUTTON_TEST_GOOD);
+
 	if (IS_ENABLED(CONFIG_AT_CMD_REQUESTS)) {
 		/* Register with connection.c to receive general device messages and check them for
 		 * AT command requests.
@@ -337,6 +370,12 @@ void main_application_thread_fn(void)
 
 		if (IS_ENABLED(CONFIG_TEST_COUNTER)) {
 			(void)send_sensor_sample("COUNT", counter++);
+		}
+
+		/* Wait for a button press */
+		if (k_sem_take(&button_press_sem, K_NO_WAIT) == 0) {
+			err = nrf_cloud_injection_test(INJECT_DELAY_MS, bad_button_pressed);
+			LOG_INF("Test returned %d", err);
 		}
 
 		/* Wait out any remaining time on the sample interval timer. */

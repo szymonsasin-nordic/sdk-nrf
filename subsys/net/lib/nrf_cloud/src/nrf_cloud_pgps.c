@@ -515,6 +515,71 @@ int nrf_cloud_pgps_notify_prediction(void)
 	return err;
 }
 
+
+static void do_damage(struct nrf_cloud_pgps_prediction *dst, struct nrf_cloud_pgps_prediction *src)
+{
+	uint8_t *dstbuf = (uint8_t *)dst->ephemerii;
+	uint8_t *srcbuf = (uint8_t *)src->ephemerii;
+
+	memcpy(dst, src, sizeof(struct nrf_cloud_pgps_prediction));
+	memcpy(&dstbuf[3], srcbuf, sizeof(src->ephemerii[0]) * src->ephemeris_count - 3);
+	dstbuf[0] = 0x02;
+	dstbuf[1] = 0x20;
+	dstbuf[2] = 0x00;
+}
+
+int nrf_cloud_injection_test(int delay_per_prediction_ms, bool damage_first)
+{
+	if (state ==PGPS_READY) {
+		int pnum;
+		int err;
+		int good = 0;
+		int badp = 0;
+		int badi = 0;
+		struct nrf_cloud_pgps_prediction *p;
+		struct nrf_cloud_pgps_prediction bp;
+
+		LOG_INF("*** Testing all predictions in storage...");
+		for (pnum = 0; pnum < index.header.prediction_count; pnum++) {
+			k_sleep(K_MSEC(delay_per_prediction_ms));
+			p = get_prediction(pnum);
+			if (p == NULL) {
+				LOG_ERR("*** Prediction %d not found", pnum);
+				badp++;
+			} else {
+				if (damage_first && (pnum == 0)) {
+					LOG_INF("Causing Damage: inserting 3 extra bytes"
+						" at start of prediction %d", pnum);
+					do_damage(&bp, p);
+					p = &bp;
+				}
+				LOG_INF("*** Accessed prediction %u at address %p; injecting...",
+					pnum, p);
+				err = nrf_cloud_pgps_inject(p, NULL);
+				if (err) {
+					LOG_ERR("*** Error injecting prediction %d", pnum);
+					LOG_HEXDUMP_ERR(&p->schema_version,
+							sizeof(p->schema_version) +
+							sizeof(p->ephemeris_type) +
+							sizeof(p->ephemeris_count) +
+							sizeof(p->ephemerii),
+							"Ephemerides");
+					badi++;
+				} else {
+					LOG_INF("*** Injected prediction %d to modem", pnum);
+					good++;
+				}
+			}
+		}
+		LOG_INF("*** Test complete.  Good: %d, bad predictions: %d, bad injection: %d",
+			good, badp, badi);
+	} else {
+		LOG_ERR("*** Cannot test -- not in correct state %d, is %d", PGPS_READY, state);
+		return -ENODATA;
+	}
+	return 0;
+}
+
 static void prediction_work_handler(struct k_work *work)
 {
 	struct nrf_cloud_pgps_prediction *p;
