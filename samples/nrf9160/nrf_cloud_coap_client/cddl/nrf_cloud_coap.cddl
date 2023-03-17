@@ -1,0 +1,120 @@
+;
+; Copyright (c) 2023 Nordic Semiconductor ASA
+;
+; SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+;
+
+; Ground Fix Req
+
+ncell = {
+	earfcn => uint,
+	pci => uint,
+	? rsrp => int,
+	? rsrq => float,
+	? timeDiff => int
+}
+
+cell = {
+	mcc => uint,
+	mnc => uint,
+	eci => uint,
+	tac => uint,
+	? earfcn => uint,
+	? adv => uint,
+	nmr => [0*5 ncells: ncell],
+	? rsrp => int,
+	? rsrq => float
+}
+
+lte_ar = [1*5 cell]
+
+ap = {
+	macAddress => tstr,
+	? age => uint,
+	? signalStrength => int,
+	? channel => uint,
+	? ssid => tstr
+}
+
+wifi_ob = {
+	accessPoints => [2*20 ap]
+}
+
+ground_fix_req = {
+	? lte => lte_ar,
+	? wifi => wifi_ob
+}
+
+earfcn = "earfcn"
+pci = "pci"
+rsrp = "rsrp"
+rsrq = "rsrq"
+timeDiff = "timeDiff"
+mcc = "mcc"
+mnc = "mnc"
+eci = "eci"
+tac = "tac"
+adv = "adv"
+nmr = "nmr"
+macAddress = "macAddress"
+age = "age"
+signalStrength = "signalStrength"
+channel = "channel"
+ssid = "ssid"
+accessPoints = "accessPoints"
+lte = "lte"
+wifi = "wifi"
+
+; Response from ground_fix_req
+
+ground_fix_resp = {
+       lat => float,
+       lon => float,
+       uncertainty => int/float,
+	fulfilledWith => tstr
+}
+
+fulfilledWith = "fulfilledWith"
+lat = "lat"
+lon = "lon"
+uncertainty = "uncertainty"
+
+; Send Message
+
+data_ob = {
+	appId => tstr,
+	messageType => tstr,
+	data => tstr/float,
+       ? ts => uint .size 8
+}
+
+message_out = {
+	? topic => tstr,
+       message => data_ob
+}
+
+appId = "appId"
+messageType = "messageType"
+data = "data"
+ts = "ts"
+topic = "topic"
+message = "message"
+
+; Get AGPS
+
+agps_req = {
+	? customTypes => [1*10 int],
+       eci => uint,
+       ? filtered => bool,
+       ? mask => uint,
+       mcc => uint,
+       mnc => uint,
+       requestType => tstr,
+       ? rsrp => int,
+       tac => uint
+}
+
+customTypes = "customTypes"
+filtered = "filtered"
+mask = "mask"
+requestType = "requestType"

@@ -1,0 +1,47 @@
+;
+; Copyright (c) 2023 Nordic Semiconductor ASA
+;
+; SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+;
+
+; ************
+; Send Message
+; ************
+
+
+; TODO: add DEVICE msg for networkInfo, simInfo, deviceInfo, serviceInfo?
+
+pvt = {
+	lat => float,
+       lng => float,
+       acc => float,
+       ? spd => float,
+       ? hdg => float,
+       ? alt => float
+}
+
+data_ob = {
+	appId => tstr,
+	messageType => tstr,
+	data => tstr/float/pvt,
+       ? ts => uint .size 8
+}
+
+message_out = {
+	? topic => tstr,
+       message => data_ob
+}
+
+appId = 1
+messageType = 2
+data = 3
+ts = 4
+topic = 5
+message = 6
+lat = 7
+lng = 8
+acc = 9
+spd = 10
+hdg = 11
+alt = 12
+
