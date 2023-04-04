@@ -1,0 +1,65 @@
+# Copyright (c) 2023 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig NRF_CLOUD_COAP
+	bool "nRF Cloud COAP"
+	select CJSON_LIB
+	select ZCBOR
+	select COAP
+	select COAP_EXTENDED_OPTIONS_LEN
+	select COAP_CLIENT
+
+if NRF_CLOUD_COAP
+
+config NRF_CLOUD_COAP_SERVER_HOSTNAME
+	string "CoAP server hostname"
+	default "coap.dev.nrfcloud.com"
+
+menuconfig NRF_CLOUD_COAP_DTLS
+	bool "CoAP client with DTLS support"
+	help
+	  If y, use together with either overlay-mbedtls.conf or
+	  overlay-offload-tls.conf.
+
+if NRF_CLOUD_COAP_DTLS
+
+config NRF_CLOUD_COAP_DTLS_PSK
+	bool "DTLS using Pre-Shared Keys"
+	help
+	  If y, use PSKs for security.  If n, use CA certificate + JWT.
+
+if NRF_CLOUD_COAP_DTLS_PSK
+
+config COAP_DTLS_PSK_IDENTITY
+	string "DTLS Preshared Key Identity"
+	default ""
+	# default "n3526561061234690123456789abcdef"
+
+config COAP_DTLS_PSK_SECRET
+	string "DTLS Preshared Key Secret"
+	default ""
+	# default "000102030405060708090a0b0c0d0e0f"
+
+endif
+endif
+
+config NRF_CLOUD_COAP_SEC_TAG
+	int "Security tag in which to store credentials"
+	default 86
+
+config NRF_CLOUD_COAP_THREAD_STACK_SIZE
+	int "Stack size for CoAP reception thread"
+       default 4096
+
+config NRF_CLOUD_COAP_SERVER_PORT
+	int "CoAP server port"
+	default 5684 if NRF_CLOUD_COAP_DTLS
+	default 5683
+
+module = NRF_CLOUD_COAP
+module-str = nRF Cloud COAP
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # NRF_CLOUD_COAP

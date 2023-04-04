@@ -1823,7 +1823,7 @@ int nrf_cloud_pgps_response_decode(const char *const response,
 			LOG_ERR("nRF Cloud returned P-GPS error: %d", nrf_err);
 			err = -EFAULT;
 		} else {
-			LOG_ERR("Invalid P-GPS response format");
+			LOG_ERR("Invalid P-GPS response format: %s", response);
 			err = -EPROTO;
 		}
 

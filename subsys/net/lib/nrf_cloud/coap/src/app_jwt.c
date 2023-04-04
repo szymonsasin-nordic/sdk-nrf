@@ -18,7 +18,7 @@
 #include "app_jwt.h"
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(app_jwt, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
+LOG_MODULE_REGISTER(app_jwt, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 
 #define JWT_BUF_SZ	900
 
@@ -135,7 +135,6 @@ static void base64_url_format(char *const base64_string)
 		*found = '\0';
 	}
 }
-#endif
 
 int app_jwt_generate(uint32_t time_valid_s, char *const jwt_buf, size_t jwt_buf_sz)
 {
@@ -145,28 +144,21 @@ int app_jwt_generate(uint32_t time_valid_s, char *const jwt_buf, size_t jwt_buf_
 		return -EINVAL;
 	}
 
-#if !defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
-	err = nrf_cloud_jwt_generate(time_valid_s, jwt_buf, jwt_buf_sz);
-	if (err) {
-		LOG_ERR("Error generating JWT with modem: %d", err);
-	}
-#else
 	#define GET_TIME_CMD "AT%%CCLK?"
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN + 1];
 	struct jwt_data jwt = {
 		.audience = NULL,
-		.sec_tag = CONFIG_COAP_SECTAG,
+		.sec_tag = CONFIG_NRF_CLOUD_COAP_SEC_TAG,
 		.key = JWT_KEY_TYPE_CLIENT_PRIV,
 		.alg = JWT_ALG_TYPE_ES256,
 		.jwt_buf = jwt_buf,
 		.jwt_sz = jwt_buf_sz
 	};
 
-	/* Check if modem time is valid */
-	err = nrf_modem_at_cmd(buf, sizeof(buf), GET_TIME_CMD);
-	if (err != 0) {
-		LOG_ERR("Modem does not have valid date/time, JWT not generated");
-		return -ETIME;
+	/* Check if date/time is valid */
+	if (!data_time_is_valid()) {
+		LOG_ERR("Valid data/time unknown, JWT not generated");
+			return -ETIME;
 	}
 
 	if (time_valid_s > NRF_CLOUD_JWT_VALID_TIME_S_MAX) {
@@ -263,9 +255,9 @@ int app_jwt_generate(uint32_t time_valid_s, char *const jwt_buf, size_t jwt_buf_
 	if (err) {
 		LOG_ERR("Failed to generate JWT, error: %d", err);
 	}
-#endif
 	return err;
 }
+#endif
 
 /*
 JWT: eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IjA3MDM3NWJkMjQxMTNlOGI4MzM4ZWRiZjUxZDg1NDliMjhjYTBlZjIwMmIxNjA0NGVlOGZjY2EyMjE1NDBiZDYifSAg.eyJpc3MiOiJuUkY5MTYwLjUwNGU1MzUzLTM4MzEtNDVjOC04MDBhLTI3MTlkOGJhMzlmNSIsImp0aSI6Im5SRjkxNjAuZjZlM2JkN2ItN2RmMy00Yjg4LWI0M2EtYTdhOTc2NmEwNGFkLjJmNzM1M2UwYTdkMzMzNWE0N2NmYjFhZDdlM2U5YWNiIiwiaWF0IjoxNjc2OTMwMzU4LCJleHAiOjE2NzY5MzA2NTgsInN1YiI6Im5yZi0zNTI2NTYxMDYxMDgxNDgifSAg.uv7rse7I4-peOgYU2twZc9HpItQU4K3JBYc7vEXPK7S7oLTvfDBoP_63T1J5EIquXLmCTmSTXLPEVcMkJm24FQ

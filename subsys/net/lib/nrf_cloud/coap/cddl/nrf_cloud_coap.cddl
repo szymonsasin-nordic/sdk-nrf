@@ -68,9 +68,9 @@ wifi = "wifi"
 ; Response from ground_fix_req
 
 ground_fix_resp = {
-       lat => float,
-       lon => float,
-       uncertainty => int/float,
+	lat => float,
+	lon => float,
+	uncertainty => int/float,
 	fulfilledWith => tstr
 }
 
@@ -85,12 +85,12 @@ data_ob = {
 	appId => tstr,
 	messageType => tstr,
 	data => tstr/float,
-       ? ts => uint .size 8
+	? ts => uint .size 8
 }
 
 message_out = {
 	? topic => tstr,
-       message => data_ob
+	message => data_ob
 }
 
 appId = "appId"
@@ -104,14 +104,14 @@ message = "message"
 
 agps_req = {
 	? customTypes => [1*10 int],
-       eci => uint,
-       ? filtered => bool,
-       ? mask => uint,
-       mcc => uint,
-       mnc => uint,
-       requestType => tstr,
-       ? rsrp => int,
-       tac => uint
+	eci => uint,
+	? filtered => bool,
+	? mask => uint,
+	mcc => uint,
+	mnc => uint,
+	requestType => tstr,
+	? rsrp => int,
+	tac => uint
 }
 
 customTypes = "customTypes"

@@ -1,5 +1,5 @@
 /*
- * Generated using zcbor version 0.6.0
+ * Generated using zcbor version 0.5.1
  * https://github.com/NordicSemiconductor/zcbor
  * Generated with a --default-max-qty of 3
  */
@@ -20,9 +20,18 @@
  *
  *  See `zcbor --help` for more information about --default-max-qty
  */
-#define DEFAULT_MAX_QTY 3
+#define DEFAULT_MAX_QTY 10
 
+struct methods_ {
+	enum {
+		_methods__MCELL = 5,
+		_methods__SCELL = 6,
+		_methods__WIFI = 7,
+	} _methods_choice;
+};
+
 struct ground_fix_resp {
+	struct methods_ _ground_fix_resp_fulfilledWith;
 	double _ground_fix_resp_lat;
 	double _ground_fix_resp_lon;
 	union {
@@ -33,7 +42,6 @@ struct ground_fix_resp {
 		_ground_fix_resp_uncertainty_int,
 		_ground_fix_resp_uncertainty_float,
 	} _ground_fix_resp_uncertainty_choice;
-	struct zcbor_string _ground_fix_resp_fulfilledWith;
 };
 
 
