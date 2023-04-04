@@ -26,9 +26,9 @@
 #include <nrf_modem_at.h>
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(dtls, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
+LOG_MODULE_REGISTER(dtls, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 
-#define ALL_CERTS
+/* #define ALL_CERTS */
 
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
 /* Uncomment to limit cipher negotation to a list */
@@ -37,7 +37,7 @@ LOG_MODULE_REGISTER(dtls, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
 /* #define DUMP_CIPHERLIST */
 #endif
 
-static int sectag = CONFIG_COAP_SECTAG;
+static int sectag = CONFIG_NRF_CLOUD_COAP_SEC_TAG;
 
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
 static const unsigned char ca_certificate[] = {
@@ -146,7 +146,7 @@ static int get_device_ip_address(uint8_t *d4_addr)
 
 }
 
-#if defined(CONFIG_COAP_DTLS_PSK)
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS_PSK)
 
 int provision_psk(void)
 {
@@ -305,9 +305,9 @@ int dtls_init(int sock)
 
 	LOG_INF("Setting socket options:");
 
-	LOG_INF("  hostname: %s", CONFIG_COAP_SERVER_HOSTNAME);
-	err = setsockopt(sock, SOL_TLS, TLS_HOSTNAME, CONFIG_COAP_SERVER_HOSTNAME,
-			 sizeof(CONFIG_COAP_SERVER_HOSTNAME));
+	LOG_INF("  hostname: %s", CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME);
+	err = setsockopt(sock, SOL_TLS, TLS_HOSTNAME, CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME,
+			 sizeof(CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME));
 	if (err) {
 		LOG_ERR("Error setting hostname: %d", errno);
 		return err;

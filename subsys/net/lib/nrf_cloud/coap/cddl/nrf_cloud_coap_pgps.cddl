@@ -9,9 +9,9 @@
 
 pgps_req = {
 	predictionCount => uint,
-       predictionIntervalMinutes => uint,
-       startGPSDay => uint,
-       startGPSTimeOfDaySeconds => uint
+	predictionIntervalMinutes => uint,
+	startGPSDay => uint,
+	startGPSTimeOfDaySeconds => uint
 }
 
 predictionCount = 1

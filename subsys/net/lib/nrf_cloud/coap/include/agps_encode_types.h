@@ -1,5 +1,5 @@
 /*
- * Generated using zcbor version 0.6.0
+ * Generated using zcbor version 0.5.1
  * https://github.com/NordicSemiconductor/zcbor
  * Generated with a --default-max-qty of 3
  */
@@ -20,7 +20,7 @@
  *
  *  See `zcbor --help` for more information about --default-max-qty
  */
-#define DEFAULT_MAX_QTY 3
+#define DEFAULT_MAX_QTY 10
 
 struct agps_req_customTypes_ {
 	int32_t _agps_req_customTypes_int[10];
@@ -33,6 +33,17 @@ struct agps_req_filtered {
 
 struct agps_req_mask {
 	uint32_t _agps_req_mask;
+};
+
+struct type_ {
+	enum {
+		_type__rtAssistance = 10,
+		_type__custom = 11,
+	} _type_choice;
+};
+
+struct agps_req_requestType {
+	struct type_ _agps_req_requestType;
 };
 
 struct agps_req_rsrp {
@@ -49,7 +60,8 @@ struct agps_req {
 	uint_fast32_t _agps_req_mask_present;
 	uint32_t _agps_req_mcc;
 	uint32_t _agps_req_mnc;
-	struct zcbor_string _agps_req_requestType;
+	struct agps_req_requestType _agps_req_requestType;
+	uint_fast32_t _agps_req_requestType_present;
 	struct agps_req_rsrp _agps_req_rsrp;
 	uint_fast32_t _agps_req_rsrp_present;
 	uint32_t _agps_req_tac;

@@ -18,17 +18,19 @@
 #include "ground_fix_encode.h"
 #include "ground_fix_decode_types.h"
 #include "ground_fix_decode.h"
-#include "agps_fetch_encode_types.h"
-#include "agps_fetch_encode.h"
-//#include "agps_encode_types.h"
-//#include "agps_encode.h"
+#include "agps_encode_types.h"
+#include "agps_encode.h"
+#include "pgps_encode_types.h"
+#include "pgps_encode.h"
+#include "pgps_decode_types.h"
+#include "pgps_decode.h"
 #include "msg_encode_types.h"
 #include "msg_encode.h"
 #include "coap_client.h"
 #include "coap_codec.h"
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(coap_codec, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
+LOG_MODULE_REGISTER(coap_codec, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 
 #define AGPS_FILTERED			"filtered=true"
 #define AGPS_ELEVATION_MASK		"&mask=%u"
@@ -37,10 +39,16 @@ LOG_MODULE_REGISTER(coap_codec, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
 #define AGPS_REQ_TYPE_STR_CUSTOM	"custom"
 #define AGPS_REQ_TYPE_STR_LOC		"rtLocation"
 #define AGPS_REQ_TYPE_STR_ASSIST	"rtAssistance"
+#define PGPS_REQ_PREDICT_CNT		"&" NRF_CLOUD_JSON_PGPS_PRED_COUNT "=%u"
+#define PGPS_REQ_PREDICT_INT_MIN	"&" NRF_CLOUD_JSON_PGPS_INT_MIN "=%u"
+#define PGPS_REQ_START_GPS_DAY		"&" NRF_CLOUD_JSON_PGPS_GPS_DAY "=%u"
+#define PGPS_REQ_START_GPS_TOD_S	"&" NRF_CLOUD_JSON_PGPS_GPS_TIME "=%u"
 
-static int encode_message(const char *app_id, double val, const char *str,
-			  const char *topic, int64_t ts, uint8_t *buf,
-			  size_t *len, enum coap_content_format fmt)
+static int encode_message(const char *app_id, const char *str,
+			  const struct nrf_cloud_gnss_pvt *pvt,
+			  double float_val, int int_val,
+			  int64_t ts, uint8_t *buf, size_t *len,
+			  enum coap_content_format fmt)
 {
 	int err;
 
@@ -49,25 +57,38 @@ static int encode_message(const char *app_id, double val, const char *str,
 		size_t out_len;
 
 		memset(&input, 0, sizeof(struct message_out));
-		input._message_out_message._data_ob_appId.value = app_id;
-		input._message_out_message._data_ob_appId.len = strlen(app_id);
-		input._message_out_message._data_ob_messageType.value = NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA;
-		input._message_out_message._data_ob_messageType.len = strlen(NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA);
+		input._message_out_appId.value = app_id;
+		input._message_out_appId.len = strlen(app_id);
 		if (str) {
-			input._message_out_message._data_ob_data_choice = _data_ob_data_tstr;
-			input._message_out_message._data_ob_data_tstr.value = str;
-			input._message_out_message._data_ob_data_tstr.len = strlen(str);
+			input._message_out_data_choice = _message_out_data_tstr;
+			input._message_out_data_tstr.value = str;
+			input._message_out_data_tstr.len = strlen(str);
+		} else if (pvt) {
+			input._message_out_data_choice = _message_out_data__pvt;
+			input._message_out_data__pvt._pvt_lat = pvt->lat;
+			input._message_out_data__pvt._pvt_lng = pvt->lon;
+			input._message_out_data__pvt._pvt_acc = pvt->accuracy;
+			if (pvt->has_speed) {
+				input._message_out_data__pvt._pvt_spd._pvt_spd = pvt->speed;
+				input._message_out_data__pvt._pvt_spd_present = true;
+			}
+			if (pvt->has_heading) {
+				input._message_out_data__pvt._pvt_hdg._pvt_hdg = pvt->heading;
+				input._message_out_data__pvt._pvt_hdg_present = true;
+			}
+			if (pvt->has_alt) {
+				input._message_out_data__pvt._pvt_alt._pvt_alt = pvt->alt;
+				input._message_out_data__pvt._pvt_alt_present = true;
+			}
+		} else if (!isnan(float_val)) {
+			input._message_out_data_choice = _message_out_data_float;
+			input._message_out_data_float = float_val;
 		} else {
-			input._message_out_message._data_ob_data_choice = _data_ob_data_float;
-			input._message_out_message._data_ob_data_float = val;
+			input._message_out_data_choice = _message_out_data_int;
+			input._message_out_data_int = int_val;
 		}
-		input._message_out_message._data_ob_ts._data_ob_ts = ts;
-		input._message_out_message._data_ob_ts_present = true;
-		if (topic) {
-			input._message_out_topic_present = true;
-			input._message_out_topic._message_out_topic.value = topic;
-			input._message_out_topic._message_out_topic.len = strlen(topic);
-		}
+		input._message_out_ts._message_out_ts = ts;
+		input._message_out_ts_present = true;
 		err = cbor_encode_message_out(buf, *len, &input, &out_len);
 		if (err) {
 			LOG_ERR("Error %d encoding message", err);
@@ -79,7 +100,7 @@ static int encode_message(const char *app_id, double val, const char *str,
 	} else {
 		struct nrf_cloud_data out;
 
-		err = nrf_cloud_encode_message(app_id, val, str, topic, ts, &out);
+		err = nrf_cloud_encode_message(app_id, float_val, str, NULL, ts, &out);
 		if (err) {
 			*len = 0;
 		} else if (*len < out.len) {
@@ -96,19 +117,23 @@ static int encode_message(const char *app_id, double val, const char *str,
 	return err;
 }
 
-int coap_codec_encode_message(const char *app_id, const char *value, const char *topic,
-			     int64_t ts, uint8_t *buf, size_t *len, enum coap_content_format fmt)
+int coap_codec_encode_message(const char *app_id,
+			      const char *str_val, double float_val, int int_val,
+			      int64_t ts, uint8_t *buf, size_t *len, enum coap_content_format fmt)
 {
-	return encode_message(app_id, 0, value, topic, ts, buf, len, fmt);
+	return encode_message(app_id, str_val, NULL, float_val, int_val, ts, buf, len, fmt);
 }
 
-int coap_codec_encode_sensor(const char *app_id, double value, const char *topic,
+int coap_codec_encode_sensor(const char *app_id, double float_val,
 			     int64_t ts, uint8_t *buf, size_t *len, enum coap_content_format fmt)
 {
-	char tmp[11];
+	return encode_message(app_id, NULL, NULL, float_val, 0, ts, buf, len, fmt);
+}
 
-	snprintf(tmp, sizeof(tmp) - 1, "%.4f", value);
-	return encode_message(app_id, 0, tmp, topic, ts, buf, len, fmt);
+int coap_codec_encode_pvt(const char *app_id, const struct nrf_cloud_gnss_pvt *pvt,
+			  int64_t ts, uint8_t *buf, size_t *len, enum coap_content_format fmt)
+{
+	return encode_message(app_id, NULL, pvt, 0, 0, ts, buf, len, fmt);
 }
 
 static void copy_cell(struct cell *dst, struct lte_lc_cell const *const src)
@@ -141,7 +166,8 @@ static void copy_cell(struct cell *dst, struct lte_lc_cell const *const src)
 		dst->_cell_rsrp_present = false;
 	}
 	if (src->rsrq != NRF_CLOUD_LOCATION_CELL_OMIT_RSRQ) {
-		dst->_cell_rsrq._cell_rsrq = RSRQ_IDX_TO_DB(src->rsrq);
+		dst->_cell_rsrq._cell_rsrq_float32 = RSRQ_IDX_TO_DB(src->rsrq);
+		dst->_cell_rsrq._cell_rsrq_choice = _cell_rsrq_float32;
 		dst->_cell_rsrq_present = true;
 	} else {
 		dst->_cell_rsrq_present = false;
@@ -160,7 +186,8 @@ static void copy_ncells(struct ncell *dst, int num, struct lte_lc_ncell *src)
 			dst->_ncell_rsrp_present = false;
 		}
 		if (src->rsrq != NRF_CLOUD_LOCATION_CELL_OMIT_RSRQ) {
-			dst->_ncell_rsrq._ncell_rsrq = RSRQ_IDX_TO_DB(src->rsrq);
+			dst->_ncell_rsrq._ncell_rsrq_float32 = RSRQ_IDX_TO_DB(src->rsrq);
+			dst->_ncell_rsrq._ncell_rsrq_choice = _ncell_rsrq_float32;
 			dst->_ncell_rsrq_present = true;
 		} else {
 			dst->_ncell_rsrq_present = false;
@@ -186,10 +213,10 @@ static void copy_cell_info(struct lte_ar *lte_encode,
 		if (cell_info->current_cell.id != LTE_LC_CELL_EUTRAN_ID_INVALID) {
 			lte_encode->_lte_ar__cell_count++;
 			copy_cell(cell, &cell_info->current_cell);
-			cell->_cell_nmr_ncells_count = cell_info->ncells_count;
+			cell->_cell_nmr._cell_nmr_ncells_count = cell_info->ncells_count;
 			if (cell_info->ncells_count) {
-				copy_ncells(cell->_cell_nmr_ncells,
-					    MIN(ARRAY_SIZE(cell->_cell_nmr_ncells),
+				copy_ncells(cell->_cell_nmr._cell_nmr_ncells,
+					    MIN(ARRAY_SIZE(cell->_cell_nmr._cell_nmr_ncells),
 						cell_info->ncells_count),
 					    cell_info->neighbor_cells);
 			}
@@ -224,25 +251,26 @@ static void copy_wifi_info(struct wifi_ob *wifi_encode,
 
 		dst->_ap_macAddress.value = src->mac;
 		dst->_ap_macAddress.len = src->mac_length;
-		if (src->ssid_length && src->ssid[0]) {
-			dst->_ap_ssid._ap_ssid.value = src->ssid;
-			dst->_ap_ssid._ap_ssid.len = src->ssid_length;
-			dst->_ap_ssid_present = true;
-		} else {
-			dst->_ap_ssid_present = false;
-		}
 		dst->_ap_age_present = false;
+		if (src->rssi != NRF_CLOUD_LOCATION_WIFI_OMIT_RSSI) {
+			dst->_ap_signalStrength._ap_signalStrength = src->rssi;
+			dst->_ap_signalStrength_present = true;
+		} else {
+			dst->_ap_signalStrength_present = false;
+		}
 		if (src->channel != NRF_CLOUD_LOCATION_WIFI_OMIT_CHAN) {
 			dst->_ap_channel._ap_channel = src->channel;
 			dst->_ap_channel_present = true;
 		} else {
 			dst->_ap_channel_present = false;
 		}
-		if (src->rssi != NRF_CLOUD_LOCATION_WIFI_OMIT_RSSI) {
-			dst->_ap_signalStrength._ap_signalStrength = src->rssi;
-			dst->_ap_signalStrength_present = true;
+		dst->_ap_frequency_present = false;
+		if (src->ssid_length && src->ssid[0]) {
+			dst->_ap_ssid._ap_ssid.value = src->ssid;
+			dst->_ap_ssid._ap_ssid.len = src->ssid_length;
+			dst->_ap_ssid_present = true;
 		} else {
-			dst->_ap_signalStrength_present = false;
+			dst->_ap_ssid_present = false;
 		}
 		num_aps--;
 		if (!num_aps) {
@@ -255,7 +283,7 @@ int coap_codec_encode_ground_fix_req(struct lte_lc_cells_info const *const cell_
 				     struct wifi_scan_info const *const wifi_info,
 				     uint8_t *buf, size_t *len, enum coap_content_format fmt)
 {
-	int err;
+	int err = 0;
 
 	if (fmt == COAP_CONTENT_FORMAT_APP_CBOR) {
 		struct ground_fix_req input;
@@ -279,19 +307,47 @@ int coap_codec_encode_ground_fix_req(struct lte_lc_cells_info const *const cell_
 			*len = out_len;
 		}
 	} else {
-		char *out;
+		cJSON *obj;
+		bool request_loc = true;
 
-		err = nrf_cloud_format_location_req(cell_info, wifi_info, &out);
-		if (!err) {
-			if (strlen(out) >= *len) {
-				err = -E2BIG;
-			} else {
-				*len = strlen(out);
-				memcpy(buf, out, *len);
-				buf[*len] = '\0';
-			}
-			cJSON_free((void *)out);
+		obj = json_create_req_obj(NRF_CLOUD_JSON_APPID_VAL_LOCATION,
+					  NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA);
+		cJSON *data_obj = cJSON_AddObjectToObject(obj, NRF_CLOUD_JSON_DATA_KEY);
+
+		if (!data_obj) {
+			err = -ENOMEM;
+			goto cleanup;
 		}
+
+		if (cell_info) {
+			err = nrf_cloud_cell_pos_req_json_encode(cell_info, data_obj);
+			if (err) {
+				LOG_ERR("Failed to add cell info to location request, error: %d", err);
+				goto cleanup;
+			}
+		}
+
+		if (wifi_info) {
+			err = nrf_cloud_wifi_req_json_encode(wifi_info, data_obj);
+			if (err) {
+				LOG_ERR("Failed to add WiFi info to location request, error: %d", err);
+				goto cleanup;
+			}
+		}
+
+		/* By default, nRF Cloud will send the location to the device */
+		if (!request_loc &&
+		    !cJSON_AddNumberToObjectCS(data_obj, NRF_CLOUD_LOCATION_KEY_DOREPLY, 0)) {
+			err = -ENOMEM;
+			goto cleanup;
+		}
+
+		if (!err) {
+			cJSON_PrintPreallocated(obj, buf, *len, false);
+			*len = strlen((const char *)buf);
+		}
+cleanup:
+		cJSON_Delete(obj);
 	}
 	return err;
 }
@@ -307,7 +363,7 @@ int coap_codec_decode_ground_fix_resp(struct nrf_cloud_location_result *result,
 	if (fmt == COAP_CONTENT_FORMAT_APP_CBOR) {
 		struct ground_fix_resp res;
 		size_t out_len;
-		char type[11] = {0};
+		int type;
 
 		err = cbor_decode_ground_fix_resp(buf, len, &res, &out_len);
 		if (out_len != len) {
@@ -318,32 +374,33 @@ int coap_codec_decode_ground_fix_resp(struct nrf_cloud_location_result *result,
 			return err;
 		}
 
-		strncpy(type, res._ground_fix_resp_fulfilledWith.value,
-			(MIN(sizeof(type) - 1, res._ground_fix_resp_fulfilledWith.len)));
-
-		if (!strcmp(type, NRF_CLOUD_LOCATION_TYPE_VAL_MCELL)) {
+		type = res._ground_fix_resp_fulfilledWith._methods_choice;
+		if (type == _methods__MCELL) {
 			result->type = LOCATION_TYPE_MULTI_CELL;
-		} else if (!strcmp(type, NRF_CLOUD_LOCATION_TYPE_VAL_SCELL)) {
+		} else if (type == _methods__SCELL) {
 			result->type = LOCATION_TYPE_SINGLE_CELL;
-		} else if (!strcmp(type, NRF_CLOUD_LOCATION_TYPE_VAL_WIFI)) {
+		} else if (type == _methods__WIFI) {
 			result->type = LOCATION_TYPE_WIFI;
 		} else {
 			result->type = LOCATION_TYPE__INVALID;
-			LOG_WRN("Unhandled location type: %s", type);
+			LOG_WRN("Unhandled location type: %d", type);
 		}
+
 		result->lat = res._ground_fix_resp_lat;
 		result->lon = res._ground_fix_resp_lon;
+
 		if (res._ground_fix_resp_uncertainty_choice == _ground_fix_resp_uncertainty_int) {
 			result->unc = res._ground_fix_resp_uncertainty_int;
 		} else {
 			result->unc = (uint32_t)lround(res._ground_fix_resp_uncertainty_float);
 		}
 	} else {
-		err = nrf_cloud_parse_location_response((const char *const)buf, result);
+		err = nrf_cloud_location_response_decode((const char *const)buf, result);
 	}
 	return err;
 }
 
+#if defined(CONFIG_NRF_CLOUD_AGPS)
 #define ALL_TYPES (NRF_MODEM_GNSS_AGPS_GPS_UTC_REQUEST | \
 		   NRF_MODEM_GNSS_AGPS_KLOBUCHAR_REQUEST | \
 		   NRF_MODEM_GNSS_AGPS_NEQUICK_REQUEST | \
@@ -448,7 +505,7 @@ int coap_codec_encode_agps(struct nrf_cloud_rest_agps_request const *const reque
 	int ret;
 
 	if (fmt == COAP_CONTENT_FORMAT_APP_CBOR) {
-#if 0
+#if 1
 		struct agps_req input;
 		struct agps_req_customTypes_ *t = &input._agps_req_customTypes;
 		size_t out_len;
@@ -460,19 +517,22 @@ int coap_codec_encode_agps(struct nrf_cloud_rest_agps_request const *const reque
 		input._agps_req_tac = request->net_info->current_cell.tac;
 		if (agps_all_types_set(request->agps_req) &&
 		    (request->type == NRF_CLOUD_REST_AGPS_REQ_CUSTOM)) {
-			input._agps_req_requestType.value = AGPS_REQ_TYPE_STR_ASSIST;
-			input._agps_req_requestType.len = strlen(AGPS_REQ_TYPE_STR_ASSIST);
+			input._agps_req_requestType._agps_req_requestType._type_choice =
+				_type__rtAssistance;
+			input._agps_req_requestType_present = true;
 		} else if (request->type == NRF_CLOUD_REST_AGPS_REQ_CUSTOM) {
-			input._agps_req_customTypes_present = true;
 			t->_agps_req_customTypes_int_count = format_agps_custom_types_array(
 							request->agps_req,
 							t->_agps_req_customTypes_int,
 							ARRAY_SIZE(t->_agps_req_customTypes_int));
-			input._agps_req_requestType.value = AGPS_REQ_TYPE_STR_CUSTOM;
-			input._agps_req_requestType.len = strlen(AGPS_REQ_TYPE_STR_CUSTOM);
+			input._agps_req_customTypes_present = true;
+			input._agps_req_requestType._agps_req_requestType._type_choice =
+				_type__custom;
+			input._agps_req_requestType_present = true;
 		} else {
-			input._agps_req_requestType.value = AGPS_REQ_TYPE_STR_ASSIST;
-			input._agps_req_requestType.len = strlen(AGPS_REQ_TYPE_STR_ASSIST);
+			input._agps_req_requestType._agps_req_requestType._type_choice =
+				_type__rtAssistance;
+			input._agps_req_requestType_present = true;
 		}
 		if (request->filtered) {
 			input._agps_req_filtered_present = true;
@@ -594,8 +654,12 @@ clean_up:
 int coap_codec_decode_agps_resp(struct nrf_cloud_rest_agps_result *result,
 				const uint8_t *buf, size_t len, enum coap_content_format fmt)
 {
+	if (fmt == COAP_CONTENT_FORMAT_APP_JSON) {
+		LOG_ERR("Error on A-GPS: %*s", len, (const char *)buf);
+		return -EFAULT;
+	}
 	if (fmt != COAP_CONTENT_FORMAT_APP_OCTET_STREAM) {
-		LOG_ERR("Invalid format for AGPS data");
+		LOG_ERR("Invalid format for A-GPS data: %d", fmt);
 		return -ENOTSUP;
 	}
 	if (!result) {
@@ -603,13 +667,121 @@ int coap_codec_decode_agps_resp(struct nrf_cloud_rest_agps_result *result,
 	}
 
 	if (result->buf_sz < len) {
-		LOG_WRN("AGPS buffer is too small; expected: %zd, got:%zd; truncated",
+		LOG_WRN("A-GPS buffer is too small; expected: %zd, got:%zd; truncated",
 			len, result->buf_sz);
 	}
 	result->agps_sz = MIN(result->buf_sz, len);
 	memcpy(result->buf, buf, result->agps_sz);
 	return 0;
 }
+#endif /* CONFIG_NRF_CLOUD_AGPS */
+
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+int coap_codec_encode_pgps(struct nrf_cloud_rest_pgps_request const *const request,
+			   uint8_t *buf, size_t *len, bool *query_string,
+			   enum coap_content_format fmt)
+{
+	int ret;
+	__ASSERT_NO_MSG(request != NULL);
+	__ASSERT_NO_MSG(request->pgps_req != NULL);
+
+	if (fmt == COAP_CONTENT_FORMAT_APP_CBOR) {
+		struct pgps_req input;
+		size_t out_len;
+
+		memset(&input, 0, sizeof(input));
+
+		input._pgps_req_predictionCount = request->pgps_req->prediction_count;
+		input._pgps_req_predictionIntervalMinutes = request->pgps_req->prediction_period_min;
+		input._pgps_req_startGPSDay = request->pgps_req->gps_day;
+		input._pgps_req_startGPSTimeOfDaySeconds = request->pgps_req->gps_time_of_day;
+
+		ret = cbor_encode_pgps_req(buf, *len, &input, &out_len);
+		if (ret) {
+			LOG_ERR("Error %d encoding P-GPS req", ret);
+			ret = -EINVAL;
+			*len = 0;
+		} else {
+			*len = out_len;
+		}
+	} else {
+		char *query = (char *)buf;
+		size_t pos = 0;
+		size_t remain = *len;
+
+		if (request->pgps_req->prediction_count !=
+		    NRF_CLOUD_REST_PGPS_REQ_NO_COUNT) {
+			ret = snprintk(&query[pos], remain, PGPS_REQ_PREDICT_CNT,
+				request->pgps_req->prediction_count);
+			if ((ret < 0) || (ret >= remain)) {
+				LOG_ERR("Could not format URL: prediction count");
+				ret = -ETXTBSY;
+				goto clean_up;
+			}
+			pos += ret;
+			remain -= ret;
+		}
+
+		if (request->pgps_req->prediction_period_min !=
+		    NRF_CLOUD_REST_PGPS_REQ_NO_INTERVAL) {
+			ret = snprintk(&query[pos], remain, PGPS_REQ_PREDICT_INT_MIN,
+				       request->pgps_req->prediction_period_min);
+			if ((ret < 0) || (ret >= remain)) {
+				LOG_ERR("Could not format URL: prediction interval");
+				ret = -ETXTBSY;
+				goto clean_up;
+			}
+			pos += ret;
+			remain -= ret;
+		}
+
+		if (request->pgps_req->gps_day !=
+		    NRF_CLOUD_REST_PGPS_REQ_NO_GPS_DAY) {
+			ret = snprintk(&query[pos], remain, PGPS_REQ_START_GPS_DAY,
+				       request->pgps_req->gps_day);
+			if ((ret < 0) || (ret >= remain)) {
+				LOG_ERR("Could not format URL: GPS day");
+				ret = -ETXTBSY;
+				goto clean_up;
+			}
+			pos += ret;
+			remain -= ret;
+		}
+
+		if (request->pgps_req->gps_time_of_day !=
+		    NRF_CLOUD_REST_PGPS_REQ_NO_GPS_TOD) {
+			ret = snprintk(&query[pos], remain, PGPS_REQ_START_GPS_TOD_S,
+				       request->pgps_req->gps_time_of_day);
+			if ((ret < 0) || (ret >= remain)) {
+				LOG_ERR("Could not format URL: GPS time");
+				ret = -ETXTBSY;
+				goto clean_up;
+			}
+			pos += ret;
+			remain -= ret;
+		}
+		*len = pos;
+		LOG_INF("P-GPS query: %s", (const char *)buf);
+		ret = 0;
+
+clean_up:
+		buf[0] = 0;
+		*len = 0;
+	}
+
+	return ret;
+}
+
+int coap_codec_decode_pgps_resp(struct nrf_cloud_pgps_result *result,
+				const uint8_t *buf, size_t len, enum coap_content_format fmt)
+{
+	if (fmt != COAP_CONTENT_FORMAT_APP_JSON) {
+		LOG_ERR("Invalid format for P-GPS: %d", fmt);
+		return -ENOTSUP;
+	}
+	return nrf_cloud_pgps_response_decode((const char *)buf, result);
+}
+#endif /* CONFIG_NRF_CLOUD_PGPS */
 
 int coap_codec_decode_fota_resp(struct nrf_cloud_fota_job_info * job,
 				const uint8_t *buf, size_t len, enum coap_content_format fmt)
@@ -620,7 +792,7 @@ int coap_codec_decode_fota_resp(struct nrf_cloud_fota_job_info * job,
 	if (fmt == COAP_CONTENT_FORMAT_APP_CBOR) {
 		return -ENOTSUP;
 	} else {
-		return nrf_cloud_rest_fota_execution_parse(buf, job);
+		return nrf_cloud_rest_fota_execution_decode(buf, job);
 	}
 }
 

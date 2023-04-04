@@ -39,4 +39,23 @@ zephyr_library_sources_ifdef(
 zephyr_library_sources_ifdef(
 	CONFIG_NRF_CLOUD_REST
 	src/nrf_cloud_rest.c)
+zephyr_compile_definitions_ifdef(
+	CONFIG_NRF_CLOUD_COAP
+	nrf_cloud_coap CDDL_CBOR_CANONICAL)
+zephyr_library_sources_ifdef(
+	CONFIG_NRF_CLOUD_COAP
+	coap/src/agps_encode.c
+	coap/src/app_jwt.c
+	coap/src/coap_client.c
+	coap/src/coap_codec.c
+	coap/src/dtls.c
+	coap/src/ground_fix_encode.c
+	coap/src/ground_fix_decode.c
+	coap/src/msg_encode.c
+	coap/src/nrf_cloud_coap.c
+	coap/src/pgps_decode.c
+	coap/src/pgps_encode.c)
+zephyr_include_directories_ifdef(
+	CONFIG_NRF_CLOUD_COAP
+	coap/include)
 zephyr_include_directories(./include)

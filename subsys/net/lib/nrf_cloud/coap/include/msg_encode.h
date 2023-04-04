@@ -1,5 +1,5 @@
 /*
- * Generated using zcbor version 0.6.0
+ * Generated using zcbor version 0.5.1
  * https://github.com/NordicSemiconductor/zcbor
  * Generated with a --default-max-qty of 3
  */
@@ -14,7 +14,7 @@
 #include "zcbor_encode.h"
 #include "msg_encode_types.h"
 
-#if DEFAULT_MAX_QTY != 3
+#if DEFAULT_MAX_QTY != 10
 #error "The type file was generated with a different default_max_qty than this file"
 #endif
 

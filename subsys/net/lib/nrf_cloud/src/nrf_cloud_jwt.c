@@ -60,6 +60,8 @@ int nrf_cloud_jwt_generate(uint32_t time_valid_s, char *const jwt_buf, size_t jw
 		jwt.subject = buf;
 	}
 
+	LOG_DBG("Generating JWT for sectag %d, device %s", jwt.sec_tag,
+		jwt.subject ? jwt.subject : "(internal UUID)");
 	err = modem_jwt_generate(&jwt);
 	if (err) {
 		LOG_ERR("Failed to generate JWT, error: %d", err);

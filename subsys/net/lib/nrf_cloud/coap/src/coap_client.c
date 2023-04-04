@@ -24,7 +24,7 @@
 #include "coap_client.h"
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(coap_client, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVEL);
+LOG_MODULE_REGISTER(coap_client, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 
 /* Uncomment to enable sending cell_pos parameters with GET as payload */
 //#define CELL_POS_PAYLOAD
@@ -108,11 +108,11 @@ static int server_resolve(void)
 	};
 	char ipv4_addr[NET_IPV4_ADDR_LEN];
 
-	LOG_DBG("Looking up server %s", CONFIG_COAP_SERVER_HOSTNAME);
-	err = getaddrinfo(CONFIG_COAP_SERVER_HOSTNAME, NULL, &hints, &result);
+	LOG_DBG("Looking up server %s", CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME);
+	err = getaddrinfo(CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME, NULL, &hints, &result);
 	if (err != 0) {
 		LOG_ERR("ERROR: getaddrinfo for %s failed: %d",
-			CONFIG_COAP_SERVER_HOSTNAME, err);
+			CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME, err);
 		return -EIO;
 	}
 
@@ -127,7 +127,7 @@ static int server_resolve(void)
 	server4->sin_addr.s_addr =
 		((struct sockaddr_in *)result->ai_addr)->sin_addr.s_addr;
 	server4->sin_family = AF_INET;
-	server4->sin_port = htons(CONFIG_COAP_SERVER_PORT);
+	server4->sin_port = htons(CONFIG_NRF_CLOUD_COAP_SERVER_PORT);
 
 	connection_info.s4_addr[0] = server4->sin_addr.s4_addr[0];
 	connection_info.s4_addr[1] = server4->sin_addr.s4_addr[1];
@@ -137,7 +137,8 @@ static int server_resolve(void)
 	inet_ntop(AF_INET, &server4->sin_addr.s_addr, ipv4_addr,
 		  sizeof(ipv4_addr));
 	LOG_INF("Server %s IP address: %s, port: %u",
-		CONFIG_COAP_SERVER_HOSTNAME, ipv4_addr, CONFIG_COAP_SERVER_PORT);
+		CONFIG_NRF_CLOUD_COAP_SERVER_HOSTNAME, ipv4_addr,
+		CONFIG_NRF_CLOUD_COAP_SERVER_PORT);
 
 	/* Free the address. */
 	freeaddrinfo(result);
@@ -164,7 +165,7 @@ int client_init(void)
 	}
 
 	LOG_DBG("Creating socket");
-#if !defined(CONFIG_COAP_DTLS)
+#if !defined(CONFIG_NRF_CLOUD_COAP_DTLS)
 	LOG_DBG("IPPROTO_UDP");
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 #else
@@ -182,7 +183,7 @@ int client_init(void)
 		return -errno;
 	}
 
-#if defined(CONFIG_COAP_DTLS)
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS)
 	err = dtls_init(sock);
 	if (err < 0) {
 		LOG_ERR("Failed to initialize the DTLS client: %d", err);
@@ -205,13 +206,20 @@ int client_init(void)
 	/* Randomize token. */
 	next_token = sys_rand32_get();
 
-#if !defined(CONFIG_COAP_DTLS_PSK)
+#if !defined(CONFIG_NRF_CLOUD_COAP_DTLS_PSK)
 	LOG_DBG("Generate JWT");
+#if !defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
+	err = nrf_cloud_jwt_generate(NRF_CLOUD_JWT_VALID_TIME_S_MAX, jwt, sizeof(jwt));
+	if (err) {
+		LOG_ERR("Error generating JWT with modem: %d", err);
+	}
+#else
 	err = app_jwt_generate(NRF_CLOUD_JWT_VALID_TIME_S_MAX, jwt, sizeof(jwt));
 	if (err) {
+		LOG_ERR("Error generating JWT: %d", err);
 		return err;
 	}
-
+#endif
 	char ver_string[120] = {0};
 	char mfw_string[60];
 
@@ -225,7 +233,7 @@ int client_init(void)
 	LOG_DBG("Send JWT");
 	err = client_post_send("poc/auth/jwt", err ? NULL : ver_string,
 			       (uint8_t *)jwt, strlen(jwt),
-			       COAP_CONTENT_FORMAT_TEXT_PLAIN, NULL, NULL);
+			       COAP_CONTENT_FORMAT_TEXT_PLAIN, true, NULL, NULL);
 
 	k_sem_give(&ready_sem);
 #endif
@@ -237,7 +245,7 @@ int client_provision(bool force)
 	int err = 0;
 
 	if (force || IS_ENABLED(CONFIG_NET_SOCKETS_ENABLE_DTLS)) {
-#if defined(CONFIG_COAP_DTLS_PSK)
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS_PSK)
 		err = provision_psk();
 #else
 		err = provision_ca();
@@ -517,7 +525,7 @@ int client_handle_response(uint8_t *buf, int received)
 		token[1], token[0], token_len, payload_len);
 
 	if (payload && payload_len) {
-		LOG_HEXDUMP_DBG(payload, payload_len, "payload");
+		LOG_HEXDUMP_DBG(payload, MIN(128, payload_len), "payload");
 	}
 
 	/* Look for a record related to this message, and remove if found */
@@ -571,6 +579,9 @@ int client_handle_response(uint8_t *buf, int received)
 		} else {
 			format = options[0].value[0];
 		}
+	} else {
+		LOG_WRN("No content format present");
+		format = COAP_CONTENT_FORMAT_APP_OCTET_STREAM;
 	}
 
 	int i;
@@ -614,7 +625,7 @@ static void coap_thread_fn(void)
 	}
 }
 
-K_THREAD_DEFINE(coap_thread, CONFIG_COAP_THREAD_STACK_SIZE, coap_thread_fn,
+K_THREAD_DEFINE(coap_thread, CONFIG_NRF_CLOUD_COAP_THREAD_STACK_SIZE, coap_thread_fn,
 		NULL, NULL, NULL, 0, 0, 0);
 
 /**@brief Send CoAP request. */
@@ -631,7 +642,7 @@ static int client_send(enum coap_method method, const char *resource, const char
 	int num;
 	struct coap_packet request = {0};
 	uint16_t message_id = coap_next_id();
-	enum coap_msgtype msg_type = COAP_TYPE_CON; //reliable ? COAP_TYPE_CON : COAP_TYPE_NON_CON;
+	enum coap_msgtype msg_type = true ? COAP_TYPE_CON : COAP_TYPE_NON_CON;
 	struct nrf_cloud_coap_message *msg;
 	bool cbor_fmt = (fmt_out == COAP_CONTENT_FORMAT_APP_CBOR);
 	const char *method_name;
@@ -755,11 +766,11 @@ int client_get_send(const char *resource, const char *query,
 /**@brief Send CoAP POST request. */
 int client_post_send(const char *resource, const char *query,
 		    uint8_t *buf, size_t len,
-		    enum coap_content_format fmt,
+		    enum coap_content_format fmt, bool reliable,
 		    coap_callback cb, void *user)
 {
 	return client_send(COAP_METHOD_POST, resource, query,
-			   buf, len, fmt, fmt, false, false, cb, user);
+			   buf, len, fmt, fmt, false, reliable, cb, user);
 }
 
 /**@brief Send CoAP PUT request. */

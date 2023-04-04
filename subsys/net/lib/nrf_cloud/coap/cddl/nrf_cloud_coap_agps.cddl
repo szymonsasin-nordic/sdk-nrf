@@ -12,14 +12,14 @@ type = rtAssistance/custom
 
 agps_req = {
 	? customTypes => [1*10 int],
-       eci => uint,
-       ? filtered => bool,
-       ? mask => uint,
-       mcc => uint,
-       mnc => uint,
-       ? requestType => type,
-       ? rsrp => int,
-       tac => uint
+	eci => uint,
+	? filtered => bool,
+	? mask => uint,
+	mcc => uint,
+	mnc => uint,
+	? requestType => type,
+	? rsrp => int,
+	tac => uint
 }
 
 customTypes = 1
