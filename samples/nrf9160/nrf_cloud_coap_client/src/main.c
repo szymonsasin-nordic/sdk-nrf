@@ -23,6 +23,7 @@
 #include <net/nrf_cloud.h>
 #include <dk_buttons_and_leds.h>
 //#include "nrf_cloud_codec.h"
+#include "scan_wifi.h"
 #include "nrf_cloud_coap.h"
 #include "coap_client.h"
 #include "coap_codec.h"
@@ -96,6 +97,11 @@ static K_MUTEX_DEFINE(cell_info_mutex);
 
 /* Semaphore to indicate a button has been pressed */
 static K_SEM_DEFINE(button_press_sem, 0, 1);
+
+#if defined(CONFIG_WIFI)
+/* Semaphore to indicate Wi-Fi scanning is complete */
+static K_SEM_DEFINE(wifi_scan_sem, 0, 1);
+#endif
 
 static void get_cell_info(void);
 
@@ -416,6 +422,14 @@ int init(void)
 		return err;
 	}
 
+#if defined(CONFIG_WIFI)
+	err = scan_wifi_init();
+	if (err) {
+		LOG_ERR("Error initializing Wi-Fi scanning: %d", err);
+		return err;
+	}
+#endif
+
 	err = client_init();
 	if (err) {
 		LOG_ERR("Failed to initialize CoAP client: %d", err);
@@ -471,6 +485,7 @@ int do_next_test(void)
 	struct nrf_cloud_rest_pgps_request pgps_request;
 	struct gps_pgps_request pgps_req;
 	struct nrf_cloud_pgps_result pgps_res;
+	struct wifi_scan_info *wifi_info = NULL;
 	char host[64];
 	char path[128];
 
@@ -541,13 +556,23 @@ int do_next_test(void)
 		}
 		break;
 	case 5:
-		LOG_INF("******** %d. Getting cell position", cur_test);
+		LOG_INF("******** %d. Getting position", cur_test);
 		LOG_INF("Waiting for neighbor cells..");
 		err = k_sem_take(&cell_info_ready_sem, K_SECONDS(APP_WAIT_CELLS_S));
 		if (err) {
 			LOG_ERR("Timeout waiting for cells: %d", err);
 			break;
 		}
+#if defined(CONFIG_WIFI)
+		err = scan_wifi_start(&wifi_scan_sem);
+		LOG_INF("Waiting for Wi-Fi scans...");
+		k_sem_take(&wifi_scan_sem, K_FOREVER);
+		if (err) {
+			LOG_ERR("Error starting Wi-Fi scan: %d", err);
+			break;
+		}
+		wifi_info = scan_wifi_results_get();
+#endif
 
 		(void)k_mutex_lock(&cell_info_mutex, K_FOREVER);
 
@@ -567,7 +592,7 @@ int do_next_test(void)
 			LOG_INF("Performing single-cell request");
 		}
 
-		err = nrf_cloud_coap_get_location(&cell_info, NULL, &result);
+		err = nrf_cloud_coap_get_location(&cell_info, wifi_info, &result);
 		(void)k_mutex_unlock(&cell_info_mutex);
 		if (err) {
 			LOG_ERR("Unable to get location: %d", err);
