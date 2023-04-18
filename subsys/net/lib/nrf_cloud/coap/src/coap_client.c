@@ -231,7 +231,7 @@ int client_init(void)
 		LOG_ERR("Unable to obtain the modem firmware version: %d", err);
 	}
 	LOG_DBG("Send JWT");
-	err = client_post_send("poc/auth/jwt", err ? NULL : ver_string,
+	err = client_post_send("auth/jwt", err ? NULL : ver_string,
 			       (uint8_t *)jwt, strlen(jwt),
 			       COAP_CONTENT_FORMAT_TEXT_PLAIN, true, NULL, NULL);
 
