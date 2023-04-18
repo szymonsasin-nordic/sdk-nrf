@@ -73,11 +73,11 @@ int nrf_cloud_coap_agps(struct nrf_cloud_rest_agps_request const *const request,
 		return err;
 	}
 	if (query_string) {
-		err = client_get_send("poc/loc/agps", (const char *)buffer,
+		err = client_get_send("loc/agps", (const char *)buffer,
 				      NULL, 0, COAP_CONTENT_FORMAT_APP_CBOR,
 				      COAP_CONTENT_FORMAT_APP_CBOR, get_agps, result);
 	} else {
-		err = client_fetch_send("poc/loc/agps", NULL,
+		err = client_fetch_send("loc/agps", NULL,
 				      buffer, len, COAP_CONTENT_FORMAT_APP_CBOR,
 				      COAP_CONTENT_FORMAT_APP_CBOR, get_agps, result);
 	}
@@ -128,11 +128,11 @@ int nrf_cloud_coap_pgps(struct nrf_cloud_rest_pgps_request const *const request,
 		return err;
 	}
 	if (query_string) {
-		err = client_get_send("poc/loc/pgps", (const char *)buffer,
+		err = client_get_send("loc/pgps", (const char *)buffer,
 				      NULL, 0, COAP_CONTENT_FORMAT_APP_CBOR,
 				      COAP_CONTENT_FORMAT_APP_JSON, get_pgps, result);
 	} else {
-		err = client_get_send("poc/loc/pgps", NULL,
+		err = client_get_send("loc/pgps", NULL,
 				      buffer, len, COAP_CONTENT_FORMAT_APP_CBOR,
 				      COAP_CONTENT_FORMAT_APP_JSON, get_pgps, result);
 	}
@@ -169,7 +169,7 @@ int nrf_cloud_coap_send_sensor(const char *app_id, double value)
 		LOG_ERR("Unable to encode sensor data: %d", err);
 		return err;
 	}
-	err = client_post_send("poc/msg", NULL, buffer, len,
+	err = client_post_send("msg", NULL, buffer, len,
 			       COAP_CONTENT_FORMAT_APP_CBOR, false, NULL, NULL);
 	if (err) {
 		LOG_ERR("Failed to send POST request: %d", err);
@@ -189,7 +189,7 @@ int nrf_cloud_coap_send_gnss_pvt(const struct nrf_cloud_gnss_pvt *pvt)
 		LOG_ERR("Unable to encode GNSS PVT data: %d", err);
 		return err;
 	}
-	err = client_post_send("poc/msg", NULL, buffer, len,
+	err = client_post_send("msg", NULL, buffer, len,
 			       COAP_CONTENT_FORMAT_APP_CBOR, false, NULL, NULL);
 	if (err) {
 		LOG_ERR("Failed to send POST request: %d", err);
@@ -221,7 +221,7 @@ int nrf_cloud_coap_get_location(struct lte_lc_cells_info const *const cell_info,
 		LOG_ERR("Unable to encode cell pos data: %d", err);
 		return err;
 	}
-	err = client_fetch_send("poc/loc/ground-fix", NULL, buffer, len,
+	err = client_fetch_send("loc/ground-fix", NULL, buffer, len,
 				COAP_CONTENT_FORMAT_APP_CBOR,
 				COAP_CONTENT_FORMAT_APP_CBOR, get_location, result);
 	if (err) {
@@ -261,7 +261,7 @@ int nrf_cloud_coap_get_current_fota_job(struct nrf_cloud_fota_job_info *const jo
 {
 	int err;
 
-	err = client_get_send("poc/fota/exec/current", NULL, NULL, 0,
+	err = client_get_send("fota/exec/current", NULL, NULL, 0,
 			      COAP_CONTENT_FORMAT_APP_CBOR,
 			      COAP_CONTENT_FORMAT_APP_JSON, get_fota, job);
 	if (err) {
@@ -291,7 +291,7 @@ int nrf_cloud_coap_fota_job_update(const char *const job_id,
 	__ASSERT_NO_MSG(device_id != NULL);
 	__ASSERT_NO_MSG(job_id != NULL);
 	__ASSERT_NO_MSG(status < JOB_STATUS_STRING_COUNT);
-#define API_FOTA_JOB_EXEC		"poc/fota/exec"
+#define API_FOTA_JOB_EXEC		"fota/exec"
 #define API_UPDATE_FOTA_URL_TEMPLATE	(API_FOTA_JOB_EXEC "/%s")
 #define API_UPDATE_FOTA_BODY_TEMPLATE	"{\"status\":\"%s\"}"
 #define API_UPDATE_FOTA_DETAILS_TMPLT	"{\"status\":\"%s\", \"details\":\"%s\"}"

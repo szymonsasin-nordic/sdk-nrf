@@ -710,7 +710,7 @@ int coap_codec_encode_pgps(struct nrf_cloud_rest_pgps_request const *const reque
 		size_t remain = *len;
 
 		if (request->pgps_req->prediction_count !=
-		    NRF_CLOUD_REST_PGPS_REQ_NO_COUNT) {
+		    NRF_CLOUD_PGPS_REQ_NO_COUNT) {
 			ret = snprintk(&query[pos], remain, PGPS_REQ_PREDICT_CNT,
 				request->pgps_req->prediction_count);
 			if ((ret < 0) || (ret >= remain)) {
@@ -723,7 +723,7 @@ int coap_codec_encode_pgps(struct nrf_cloud_rest_pgps_request const *const reque
 		}
 
 		if (request->pgps_req->prediction_period_min !=
-		    NRF_CLOUD_REST_PGPS_REQ_NO_INTERVAL) {
+		    NRF_CLOUD_PGPS_REQ_NO_INTERVAL) {
 			ret = snprintk(&query[pos], remain, PGPS_REQ_PREDICT_INT_MIN,
 				       request->pgps_req->prediction_period_min);
 			if ((ret < 0) || (ret >= remain)) {
@@ -736,7 +736,7 @@ int coap_codec_encode_pgps(struct nrf_cloud_rest_pgps_request const *const reque
 		}
 
 		if (request->pgps_req->gps_day !=
-		    NRF_CLOUD_REST_PGPS_REQ_NO_GPS_DAY) {
+		    NRF_CLOUD_PGPS_REQ_NO_GPS_DAY) {
 			ret = snprintk(&query[pos], remain, PGPS_REQ_START_GPS_DAY,
 				       request->pgps_req->gps_day);
 			if ((ret < 0) || (ret >= remain)) {
@@ -749,7 +749,7 @@ int coap_codec_encode_pgps(struct nrf_cloud_rest_pgps_request const *const reque
 		}
 
 		if (request->pgps_req->gps_time_of_day !=
-		    NRF_CLOUD_REST_PGPS_REQ_NO_GPS_TOD) {
+		    NRF_CLOUD_PGPS_REQ_NO_GPS_TOD) {
 			ret = snprintk(&query[pos], remain, PGPS_REQ_START_GPS_TOD_S,
 				       request->pgps_req->gps_time_of_day);
 			if ((ret < 0) || (ret >= remain)) {
