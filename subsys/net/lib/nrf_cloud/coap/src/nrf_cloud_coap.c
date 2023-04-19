@@ -169,7 +169,7 @@ int nrf_cloud_coap_send_sensor(const char *app_id, double value)
 		LOG_ERR("Unable to encode sensor data: %d", err);
 		return err;
 	}
-	err = client_post_send("msg", NULL, buffer, len,
+	err = client_post_send("msg/d2c", NULL, buffer, len,
 			       COAP_CONTENT_FORMAT_APP_CBOR, false, NULL, NULL);
 	if (err) {
 		LOG_ERR("Failed to send POST request: %d", err);
@@ -189,7 +189,7 @@ int nrf_cloud_coap_send_gnss_pvt(const struct nrf_cloud_gnss_pvt *pvt)
 		LOG_ERR("Unable to encode GNSS PVT data: %d", err);
 		return err;
 	}
-	err = client_post_send("msg", NULL, buffer, len,
+	err = client_post_send("msg/d2c", NULL, buffer, len,
 			       COAP_CONTENT_FORMAT_APP_CBOR, false, NULL, NULL);
 	if (err) {
 		LOG_ERR("Failed to send POST request: %d", err);
