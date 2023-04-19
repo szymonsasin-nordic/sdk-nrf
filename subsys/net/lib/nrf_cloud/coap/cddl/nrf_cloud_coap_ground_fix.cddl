@@ -77,8 +77,8 @@ methods = MCELL/SCELL/WIFI
 
 ground_fix_resp = {
 	fulfilledWith => methods,
-	lat => float,
-	lon => float,
+	lat => float .size 8,
+	lon => float .size 8,
 	uncertainty => int/float
 }
 

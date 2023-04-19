@@ -16,13 +16,6 @@ enum nrf_cloud_coap_response
 	NRF_CLOUD_COAP_FOTA_JOB
 };
 
-#define APP_COAP_JWT_ACK_WAIT_MS 120000
-#define APP_COAP_SEND_INTERVAL_MS 10000
-#define APP_COAP_RECEIVE_INTERVAL_MS 5000
-#define APP_COAP_CLOSE_THRESHOLD_MS 4000
-#define APP_COAP_CONNECTION_CHECK_MS 30000
-#define APP_COAP_INTERVAL_LIMIT 60
-
 typedef int (*coap_callback)(const void *buf, size_t len, enum coap_content_format format,
 			     void *user);
 

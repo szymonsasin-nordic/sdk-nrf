@@ -31,6 +31,7 @@ LOG_MODULE_REGISTER(coap_client, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 
 #define APP_COAP_MAX_MSG_LEN 1280
 #define APP_COAP_VERSION 1
+#define APP_COAP_RECEIVE_INTERVAL_MS 5000
 
 static struct sockaddr_storage server;
 
