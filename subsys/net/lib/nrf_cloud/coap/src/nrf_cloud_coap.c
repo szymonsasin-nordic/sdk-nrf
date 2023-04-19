@@ -232,7 +232,7 @@ int nrf_cloud_coap_get_location(struct lte_lc_cells_info const *const cell_info,
 	LOG_INF("Waiting for response...");
 	err = k_sem_take(&loc_sem, K_MSEC(LOC_WAIT_MS));
 	if (!err && !loc_err) {
-		LOG_INF("Location: %d, %f, %f, %d", result->type,
+		LOG_INF("Location: %d, %.12g, %.12g, %d", result->type,
 			result->lat, result->lon, result->unc);
 	} else if (err == -EAGAIN) {
 		LOG_ERR("Timeout waiting for location");

@@ -1,7 +1,7 @@
 /*
  * Generated using zcbor version 0.5.1
  * https://github.com/NordicSemiconductor/zcbor
- * Generated with a --default-max-qty of 3
+ * Generated with a --default-max-qty of 10
  */
 
 #ifndef PGPS_ENCODE_H__

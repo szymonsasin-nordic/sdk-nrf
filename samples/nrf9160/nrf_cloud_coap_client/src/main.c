@@ -35,6 +35,12 @@ LOG_MODULE_REGISTER(nrf_cloud_coap_client, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVE
 #define CREDS_REQ_WAIT_SEC 10
 #define APP_WAIT_CELLS_S 30
 
+#define APP_COAP_JWT_ACK_WAIT_MS 120000
+#define APP_COAP_SEND_INTERVAL_MS 10000
+#define APP_COAP_CLOSE_THRESHOLD_MS 4000
+#define APP_COAP_CONNECTION_CHECK_MS 30000
+#define APP_COAP_INTERVAL_LIMIT 60
+
 //#define COAP_POC
 
 /* Uncomment to incrementally increase time between coap packets */
@@ -660,6 +666,23 @@ void main(void)
 			}
 
 			err = do_next_test();
+			if (err == -EAGAIN) {
+				reconnect = true;
+				err = client_close();
+				if (err) {
+					LOG_ERR("Error closing socket: %d", err);
+				} else {
+					LOG_INF("Socket closed.");
+				}
+				LOG_INF("Going offline");
+				err = lte_lc_offline();
+				if (err) {
+					LOG_ERR("Error going offline: %d", err);
+				} else {
+					LOG_INF("Offline.");
+				}
+				continue;
+			}
 
 			delta_ms = APP_COAP_SEND_INTERVAL_MS * i;
 			LOG_INF("Next transfer in %d minutes, %d seconds",
@@ -675,12 +698,6 @@ void main(void)
 #endif
 		}
 
-		if (reconnect) {
-			k_sleep(K_MSEC(APP_COAP_RECEIVE_INTERVAL_MS));
-			check_connection();
-			continue;
-		}
-
 		if (!err && !authorized) {
 			err = client_wait_ack(APP_COAP_JWT_ACK_WAIT_MS);
 			if (!err) {
@@ -689,23 +706,6 @@ void main(void)
 				get_cell_info();
 			}
 		}
-#if defined(OPEN_AND_SHUT)
-		if (delta_ms > APP_COAP_CLOSE_THRESHOLD_MS) {
-			reconnect = true;
-			err = client_close();
-			if (err) {
-				LOG_ERR("Error closing socket: %d", err);
-			} else {
-				LOG_INF("Socket closed.");
-			}
-			LOG_INF("Going offline");
-			err = lte_lc_offline();
-			if (err) {
-				LOG_ERR("Error going offline: %d", err);
-			} else {
-			}
-		}
-#endif
 	}
 	client_close();
 }

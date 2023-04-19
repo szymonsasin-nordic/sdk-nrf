@@ -12,8 +12,8 @@
 ; TODO: add DEVICE msg for networkInfo, simInfo, deviceInfo, serviceInfo?
 
 pvt = {
-	lat => float,
-	lng => float,
+	lat => float .size 8,
+	lng => float .size 8,
 	acc => float,
 	? spd => float,
 	? hdg => float,

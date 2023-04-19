@@ -1,7 +1,7 @@
 /*
  * Generated using zcbor version 0.5.1
  * https://github.com/NordicSemiconductor/zcbor
- * Generated with a --default-max-qty of 3
+ * Generated with a --default-max-qty of 10
  */
 
 #include <stdint.h>
@@ -43,9 +43,9 @@ static bool decode_ground_fix_resp(
 	bool tmp_result = (((zcbor_map_start_decode(state) && (((((zcbor_uint32_expect(state, (4))))
 	&& (decode_methods(state, (&(*result)._ground_fix_resp_fulfilledWith))))
 	&& (((zcbor_uint32_expect(state, (1))))
-	&& (zcbor_float_decode(state, (&(*result)._ground_fix_resp_lat))))
+	&& (zcbor_float64_decode(state, (&(*result)._ground_fix_resp_lat))))
 	&& (((zcbor_uint32_expect(state, (2))))
-	&& (zcbor_float_decode(state, (&(*result)._ground_fix_resp_lon))))
+	&& (zcbor_float64_decode(state, (&(*result)._ground_fix_resp_lon))))
 	&& (((zcbor_uint32_expect(state, (3))))
 	&& (zcbor_union_start_code(state) && (int_res = ((((zcbor_int32_decode(state, (&(*result)._ground_fix_resp_uncertainty_int)))) && (((*result)._ground_fix_resp_uncertainty_choice = _ground_fix_resp_uncertainty_int) || 1))
 	|| (((zcbor_float_decode(state, (&(*result)._ground_fix_resp_uncertainty_float)))) && (((*result)._ground_fix_resp_uncertainty_choice = _ground_fix_resp_uncertainty_float) || 1))), zcbor_union_end_code(state), int_res)))) || (zcbor_list_map_end_force_decode(state), false)) && zcbor_map_end_decode(state))));
