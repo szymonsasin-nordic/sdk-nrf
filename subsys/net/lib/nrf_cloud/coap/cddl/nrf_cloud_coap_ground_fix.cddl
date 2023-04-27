@@ -31,7 +31,7 @@ cell = {
 lte_ar = [1*5 cell]
 
 ap = {
-	macAddress => bstr,
+	macAddress => tstr,
 	? age => uint,
 	? signalStrength => int,
 	? channel => uint,
