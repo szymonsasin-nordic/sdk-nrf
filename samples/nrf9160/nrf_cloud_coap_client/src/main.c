@@ -328,40 +328,38 @@ static void modem_configure(void)
 {
 	int err;
 
+	err = nrf_modem_lib_init();
+	if (err) {
+		LOG_ERR("Modem library initialization failed, error: %d", err);
+		return;
+	}
+
 	lte_lc_register_handler(lte_handler);
 #if defined(CONFIG_LTE_LINK_CONTROL)
-	if (IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT)) {
-		/* Do nothing, modem is already turned on
-		 * and connected.
-		 */
-	} else {
 #if defined(CONFIG_LWM2M_CARRIER)
-		/* Wait for the LWM2M_CARRIER to configure the modem and
-		 * start the connection.
-		 */
-		LOG_INF("Waiting for carrier registration...");
-		k_sem_take(&carrier_registered, K_FOREVER);
-		LOG_INF("Registered!");
+	/* Wait for the LWM2M_CARRIER to configure the modem and
+	 * start the connection.
+	 */
+	LOG_INF("Waiting for carrier registration...");
+	k_sem_take(&carrier_registered, K_FOREVER);
+	LOG_INF("Registered!");
 #else /* defined(CONFIG_LWM2M_CARRIER) */
-		int err;
+	LOG_INF("LTE Link Connecting ...");
+	err = lte_lc_init_and_connect();
+	__ASSERT(err == 0, "LTE link could not be established.");
+	k_sem_take(&lte_ready, K_FOREVER);
+	LOG_INF("LTE Link Connected!");
+	err = lte_lc_psm_req(true);
+	if (err) {
+		LOG_ERR("Unable to enter PSM mode: %d", err);
+	}
 
-		LOG_INF("LTE Link Connecting ...");
-		err = lte_lc_init_and_connect();
-		__ASSERT(err == 0, "LTE link could not be established.");
-		k_sem_take(&lte_ready, K_FOREVER);
-		LOG_INF("LTE Link Connected!");
-		err = lte_lc_psm_req(true);
-		if (err) {
-			LOG_ERR("Unable to enter PSM mode: %d", err);
-		}
-
-		err = nrf_modem_at_printf("AT+CEREG=5");
-		if (err) {
-			LOG_ERR("Can't subscribe to +CEREG events.");
-		}
+	err = nrf_modem_at_printf("AT+CEREG=5");
+	if (err) {
+		LOG_ERR("Can't subscribe to +CEREG events.");
+	}
 
 #endif /* defined(CONFIG_LWM2M_CARRIER) */
-	}
 #endif /* defined(CONFIG_LTE_LINK_CONTROL) */
 	/* Modem info library is used to obtain the modem FW version
 	 * and network info for single-cell requests
