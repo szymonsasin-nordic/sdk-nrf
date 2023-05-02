@@ -15,7 +15,7 @@
 #error "The type file was generated with a different default_max_qty than this file"
 #endif
 
-static bool encode_repeated_agps_req_customTypes(zcbor_state_t *state, const struct agps_req_customTypes_ *input);
+static bool encode_repeated_agps_req_types(zcbor_state_t *state, const struct agps_req_types_ *input);
 static bool encode_repeated_agps_req_filtered(zcbor_state_t *state, const struct agps_req_filtered *input);
 static bool encode_repeated_agps_req_mask(zcbor_state_t *state, const struct agps_req_mask *input);
 static bool encode_type(zcbor_state_t *state, const struct type_ *input);
@@ -24,13 +24,13 @@ static bool encode_repeated_agps_req_rsrp(zcbor_state_t *state, const struct agp
 static bool encode_agps_req(zcbor_state_t *state, const struct agps_req *input);
 
 
-static bool encode_repeated_agps_req_customTypes(
-		zcbor_state_t *state, const struct agps_req_customTypes_ *input)
+static bool encode_repeated_agps_req_types(
+		zcbor_state_t *state, const struct agps_req_types_ *input)
 {
 	zcbor_print("%s\r\n", __func__);
 
 	bool tmp_result = ((((zcbor_uint32_put(state, (1))))
-	&& (zcbor_list_start_encode(state, 10) && ((zcbor_multi_encode_minmax(1, 10, &(*input)._agps_req_customTypes_int_count, (zcbor_encoder_t *)zcbor_int32_encode, state, (&(*input)._agps_req_customTypes_int), sizeof(int32_t))) || (zcbor_list_map_end_force_encode(state), false)) && zcbor_list_end_encode(state, 10))));
+	&& (zcbor_list_start_encode(state, 10) && ((zcbor_multi_encode_minmax(1, 10, &(*input)._agps_req_types_int_count, (zcbor_encoder_t *)zcbor_int32_encode, state, (&(*input)._agps_req_types_int), sizeof(int32_t))) || (zcbor_list_map_end_force_encode(state), false)) && zcbor_list_end_encode(state, 10))));
 
 	if (!tmp_result)
 		zcbor_trace();
@@ -114,7 +114,7 @@ static bool encode_agps_req(
 {
 	zcbor_print("%s\r\n", __func__);
 
-	bool tmp_result = (((zcbor_map_start_encode(state, 9) && ((zcbor_present_encode(&((*input)._agps_req_customTypes_present), (zcbor_encoder_t *)encode_repeated_agps_req_customTypes, state, (&(*input)._agps_req_customTypes))
+	bool tmp_result = (((zcbor_map_start_encode(state, 9) && ((zcbor_present_encode(&((*input)._agps_req_types_present), (zcbor_encoder_t *)encode_repeated_agps_req_types, state, (&(*input)._agps_req_types))
 	&& (((zcbor_uint32_put(state, (2))))
 	&& (zcbor_uint32_encode(state, (&(*input)._agps_req_eci))))
 	&& zcbor_present_encode(&((*input)._agps_req_filtered_present), (zcbor_encoder_t *)encode_repeated_agps_req_filtered, state, (&(*input)._agps_req_filtered))

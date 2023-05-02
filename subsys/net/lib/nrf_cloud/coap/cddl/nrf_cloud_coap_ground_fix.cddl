@@ -73,7 +73,7 @@ wifi = 20
 ; Ground Fix Response
 ; *******************
 
-methods = MCELL/SCELL/WIFI
+methods = "MCELL"/"SCELL"/"WIFI"
 
 ground_fix_resp = {
 	fulfilledWith => methods,
@@ -86,6 +86,3 @@ lat = 1
 lon = 2
 uncertainty = 3
 fulfilledWith = 4
-MCELL = 5
-SCELL = 6
-WIFI = 7

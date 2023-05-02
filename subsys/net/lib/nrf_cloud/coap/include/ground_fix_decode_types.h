@@ -24,9 +24,9 @@
 
 struct methods_ {
 	enum {
-		_methods__MCELL = 5,
-		_methods__SCELL = 6,
-		_methods__WIFI = 7,
+		_methods_MCELL_tstr,
+		_methods_SCELL_tstr,
+		_methods_WIFI_tstr,
 	} _methods_choice;
 };
 

@@ -33,6 +33,9 @@ LOG_MODULE_REGISTER(coap_client, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 #define APP_COAP_VERSION 1
 #define APP_COAP_RECEIVE_INTERVAL_MS 5000
 
+/** @TODO: figure out whether to make this a Kconfig value or place in a header */
+#define CDDL_VERSION 1
+
 static struct sockaddr_storage server;
 
 static int sock;
@@ -226,8 +229,8 @@ int client_init(void)
 
 	err = modem_info_get_fw_version(mfw_string, sizeof(mfw_string));
 	if (!err) {
-		snprintf(ver_string, sizeof(ver_string) - 1, "mver=%s&cver=%s",
-			 mfw_string, STRINGIFY(BUILD_VERSION));
+		snprintf(ver_string, sizeof(ver_string) - 1, "mver=%s&cver=%s&dver=%d",
+			 mfw_string, STRINGIFY(BUILD_VERSION), CDDL_VERSION);
 	} else {
 		LOG_ERR("Unable to obtain the modem firmware version: %d", err);
 	}

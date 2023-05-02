@@ -23,10 +23,12 @@ static bool decode_methods(
 		zcbor_state_t *state, struct methods_ *result)
 {
 	zcbor_print("%s\r\n", __func__);
+	struct zcbor_string tmp_str;
+	bool int_res;
 
-	bool tmp_result = (((((zcbor_int_decode(state, &(*result)._methods_choice, sizeof((*result)._methods_choice)))) && ((((((*result)._methods_choice == _methods__MCELL) && ((1)))
-	|| (((*result)._methods_choice == _methods__SCELL) && ((1)))
-	|| (((*result)._methods_choice == _methods__WIFI) && ((1)))) || (zcbor_error(state, ZCBOR_ERR_WRONG_VALUE), false))))));
+	bool tmp_result = (((zcbor_union_start_code(state) && (int_res = ((((zcbor_tstr_expect(state, ((tmp_str.value = (uint8_t *)"MCELL", tmp_str.len = sizeof("MCELL") - 1, &tmp_str))))) && (((*result)._methods_choice = _methods_MCELL_tstr) || 1))
+	|| (((zcbor_tstr_expect(state, ((tmp_str.value = (uint8_t *)"SCELL", tmp_str.len = sizeof("SCELL") - 1, &tmp_str))))) && (((*result)._methods_choice = _methods_SCELL_tstr) || 1))
+	|| (((zcbor_tstr_expect(state, ((tmp_str.value = (uint8_t *)"WIFI", tmp_str.len = sizeof("WIFI") - 1, &tmp_str))))) && (((*result)._methods_choice = _methods_WIFI_tstr) || 1))), zcbor_union_end_code(state), int_res))));
 
 	if (!tmp_result)
 		zcbor_trace();

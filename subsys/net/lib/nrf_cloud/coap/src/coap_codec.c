@@ -35,7 +35,7 @@ LOG_MODULE_REGISTER(coap_codec, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 #define AGPS_FILTERED			"filtered=true"
 #define AGPS_ELEVATION_MASK		"&mask=%u"
 #define AGPS_NET_INFO			"&mcc=%u&mnc=%u&tac=%u&eci=%u"
-#define AGPS_CUSTOM_TYPE		"&customTypes=%s"
+#define AGPS_CUSTOM_TYPE		"&types=%s"
 #define AGPS_REQ_TYPE_STR_CUSTOM	"custom"
 #define AGPS_REQ_TYPE_STR_LOC		"rtLocation"
 #define AGPS_REQ_TYPE_STR_ASSIST	"rtAssistance"
@@ -375,11 +375,11 @@ int coap_codec_decode_ground_fix_resp(struct nrf_cloud_location_result *result,
 		}
 
 		type = res._ground_fix_resp_fulfilledWith._methods_choice;
-		if (type == _methods__MCELL) {
+		if (type == _methods_MCELL_tstr) {
 			result->type = LOCATION_TYPE_MULTI_CELL;
-		} else if (type == _methods__SCELL) {
+		} else if (type == _methods_SCELL_tstr) {
 			result->type = LOCATION_TYPE_SINGLE_CELL;
-		} else if (type == _methods__WIFI) {
+		} else if (type == _methods_WIFI_tstr) {
 			result->type = LOCATION_TYPE_WIFI;
 		} else {
 			result->type = LOCATION_TYPE__INVALID;
@@ -507,7 +507,7 @@ int coap_codec_encode_agps(struct nrf_cloud_rest_agps_request const *const reque
 	if (fmt == COAP_CONTENT_FORMAT_APP_CBOR) {
 #if 1
 		struct agps_req input;
-		struct agps_req_customTypes_ *t = &input._agps_req_customTypes;
+		struct agps_req_types_ *t = &input._agps_req_types;
 		size_t out_len;
 
 		memset(&input, 0, sizeof(struct agps_req));
@@ -521,11 +521,11 @@ int coap_codec_encode_agps(struct nrf_cloud_rest_agps_request const *const reque
 				_type__rtAssistance;
 			input._agps_req_requestType_present = true;
 		} else if (request->type == NRF_CLOUD_REST_AGPS_REQ_CUSTOM) {
-			t->_agps_req_customTypes_int_count = format_agps_custom_types_array(
+			t->_agps_req_types_int_count = format_agps_custom_types_array(
 							request->agps_req,
-							t->_agps_req_customTypes_int,
-							ARRAY_SIZE(t->_agps_req_customTypes_int));
-			input._agps_req_customTypes_present = true;
+							t->_agps_req_types_int,
+							ARRAY_SIZE(t->_agps_req_types_int));
+			input._agps_req_types_present = true;
 			input._agps_req_requestType._agps_req_requestType._type_choice =
 				_type__custom;
 			input._agps_req_requestType_present = true;

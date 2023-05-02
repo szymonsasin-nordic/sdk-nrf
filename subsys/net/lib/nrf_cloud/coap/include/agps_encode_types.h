@@ -22,9 +22,9 @@
  */
 #define DEFAULT_MAX_QTY 10
 
-struct agps_req_customTypes_ {
-	int32_t _agps_req_customTypes_int[10];
-	uint_fast32_t _agps_req_customTypes_int_count;
+struct agps_req_types_ {
+	int32_t _agps_req_types_int[10];
+	uint_fast32_t _agps_req_types_int_count;
 };
 
 struct agps_req_filtered {
@@ -51,8 +51,8 @@ struct agps_req_rsrp {
 };
 
 struct agps_req {
-	struct agps_req_customTypes_ _agps_req_customTypes;
-	uint_fast32_t _agps_req_customTypes_present;
+	struct agps_req_types_ _agps_req_types;
+	uint_fast32_t _agps_req_types_present;
 	uint32_t _agps_req_eci;
 	struct agps_req_filtered _agps_req_filtered;
 	uint_fast32_t _agps_req_filtered_present;

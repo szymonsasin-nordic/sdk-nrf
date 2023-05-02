@@ -11,7 +11,7 @@
 type = rtAssistance/custom
 
 agps_req = {
-	? customTypes => [1*10 int],
+	? types => [1*10 int],
 	eci => uint,
 	? filtered => bool,
 	? mask => uint,
@@ -22,7 +22,7 @@ agps_req = {
 	tac => uint
 }
 
-customTypes = 1
+types = 1
 eci = 2
 filtered = 3
 mask = 4
