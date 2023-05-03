@@ -25,6 +25,11 @@ menuconfig NRF_CLOUD_COAP_DTLS
 
 if NRF_CLOUD_COAP_DTLS
 
+config NRF_CLOUD_COAP_DTLS_CID
+	bool "Connection ID support"
+	help
+	  If y, use CID socket options.
+
 config NRF_CLOUD_COAP_DTLS_PSK
 	bool "DTLS using Pre-Shared Keys"
 	help
@@ -51,7 +56,7 @@ config NRF_CLOUD_COAP_SEC_TAG
 
 config NRF_CLOUD_COAP_THREAD_STACK_SIZE
 	int "Stack size for CoAP reception thread"
-       default 4096
+	default 4096
 
 config NRF_CLOUD_COAP_SERVER_PORT
 	int "CoAP server port"

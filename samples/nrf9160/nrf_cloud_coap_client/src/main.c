@@ -44,7 +44,7 @@ LOG_MODULE_REGISTER(nrf_cloud_coap_client, CONFIG_NRF_CLOUD_COAP_CLIENT_LOG_LEVE
 //#define COAP_POC
 
 /* Uncomment to incrementally increase time between coap packets */
-/* #define DELAY_INTERPACKET_PERIOD */
+#define DELAY_INTERPACKET_PERIOD
 
 /* Open and close socket every cycle */
 /* #define OPEN_AND_SHUT */
@@ -691,7 +691,7 @@ void main(void)
 				i = APP_COAP_INTERVAL_LIMIT;
 			}
 #endif
-#if defined(CONFIG_COAP_DTLS)
+#if defined(CONFIG_COAP_DTLS) || defined(CONFIG_NRF_CLOUD_COAP_DTLS)
 			dtls_print_connection_id(client_get_sock(), false);
 #endif
 		}

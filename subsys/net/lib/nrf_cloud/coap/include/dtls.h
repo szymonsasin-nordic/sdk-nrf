@@ -11,6 +11,8 @@ int provision_psk(void);
 int provision_ca(void);
 int dtls_init(int sock);
 int dtls_print_connection_id(int sock, bool verbose);
+int dtls_save_session(int sock);
+int dtls_load_session(int sock);
 int get_device_id(char *buf, size_t len);
 
 #endif /* DTLS_H_ */

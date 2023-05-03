@@ -441,7 +441,8 @@ static int find_response(uint8_t *token, uint16_t token_len, uint16_t message_id
 					err = 0;
 					if (type == COAP_TYPE_ACK) {
 						k_sem_give(&con_ack_sem);
-						LOG_DBG("ACK with code: %u", payload_len);
+						LOG_DBG("ACK with code: 0x%02x, len: %u",
+							code, payload_len);
 						if (payload_len) {
 							/* piggy-backed response, so remove
 							 * this one and then look for and

@@ -30,6 +30,8 @@ LOG_MODULE_REGISTER(dtls, CONFIG_NRF_CLOUD_COAP_LOG_LEVEL);
 
 /* #define ALL_CERTS */
 
+static bool dtls_saved;
+
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
 /* Uncomment to limit cipher negotation to a list */
 //#define RESTRICT_CIPHERS
@@ -298,6 +300,9 @@ int dtls_init(int sock)
 
 	uint8_t d4_addr[4];
 
+	/* once connected, cache the connection info */
+	dtls_saved = false;
+
 	err = get_device_ip_address(d4_addr);
 	if (!err) {
 		LOG_INF("Client IP address: %u.%u.%u.%u", d4_addr[0], d4_addr[1], d4_addr[2], d4_addr[3]);
@@ -347,13 +352,31 @@ int dtls_init(int sock)
 	}
 #endif
 
-#if defined(CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID)
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS_CID)
+	int cid_option = TLS_DTLS_CID_SUPPORTED;
+
+	LOG_INF("  Enable connection id:");
+	err = setsockopt(sock, SOL_TLS, TLS_DTLS_CID, &cid_option, sizeof(cid_option));
+	if (err) {
+		LOG_ERR("Error enabling connection ID: %d", errno);
+	}
+
+	int timeout = TLS_DTLS_HANDSHAKE_TIMEO_31S;
+
+	LOG_INF("  Setting handshake timeout:");
+	err = setsockopt(sock, SOL_TLS, TLS_DTLS_HANDSHAKE_TIMEO, &timeout, sizeof(timeout));
+	if (err) {
+		LOG_ERR("Error setting handshake timeout: %d", errno);
+	}
+
+
+#elif defined(CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID)
 	uint8_t dummy;
 
-	LOG_INF("  Connection id:");
+	LOG_INF("  Enable connection id:");
 	err = setsockopt(sock, SOL_TLS, TLS_DTLS_CONNECTION_ID, &dummy, 0);
 	if (err) {
-		LOG_ERR("Error setting connection ID: %d", errno);
+		LOG_ERR("Error enabling connection ID: %d", errno);
 	}
 #endif
 
@@ -375,10 +398,85 @@ int dtls_init(int sock)
 	return err;
 }
 
+int dtls_save_session(int sock)
+{
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS_CID)
+	return -ENOTSUP;
+#endif
+}
+
+int dtls_load_session(int sock)
+{
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS_CID)
+	return -ENOTSUP;
+#endif
+}
+
 int dtls_print_connection_id(int sock, bool verbose)
 {
 	int err = 0;
-#if defined(CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID)
+#if defined(CONFIG_NRF_CLOUD_COAP_DTLS_CID)
+	int status = 0;
+	int len = sizeof(status);
+
+	err = getsockopt(sock, SOL_TLS, TLS_DTLS_HANDSHAKE_STATUS, &status, &len);
+	if (!err) {
+		if (len > 0) {
+			if (status == TLS_DTLS_HANDSHAKE_STATUS_FULL) {
+				LOG_INF("Full DTLS handshake performed");
+			} else if (status == TLS_DTLS_HANDSHAKE_STATUS_CACHED) {
+				LOG_INF("Cached DTLS handshake performed");
+			} else {
+				LOG_WRN("Unknown DTLS handshake status: %d", status);
+			}
+		} else {
+			LOG_WRN("No DTLS status provided");
+		}
+	} else {
+		LOG_ERR("Error retrieving handshake status: %d", errno);
+	}
+
+	len = sizeof(status);
+	err = getsockopt(sock, SOL_TLS, TLS_DTLS_CID_STATUS, &status, &len);
+	if (!err) {
+		if (len > 0) {
+			switch (status) {
+			case TLS_DTLS_CID_STATUS_DISABLED:
+				LOG_INF("No DTLS CID used");
+				break;
+			case TLS_DTLS_CID_STATUS_DOWNLINK:
+				LOG_INF("DTLS CID downlink");
+				break;
+			case TLS_DTLS_CID_STATUS_UPLINK:
+				LOG_INF("DTLS CID uplink");
+				break;
+			case TLS_DTLS_CID_STATUS_BIDIRECTIONAL:
+				LOG_INF("DTLS CID bidirectional");
+				break;
+			default:
+				LOG_WRN("Unknown DTLS CID status: %d", status);
+				break;
+			}
+		} else {
+			LOG_WRN("No DTLS CID status provided");
+		}
+	} else {
+		LOG_ERR("Error retrieving DTLS CID status: %d", errno);
+	}
+
+	len = sizeof(status);
+	err = getsockopt(sock, SOL_TLS, TLS_DTLS_CID, &status, &len);
+	if (!err) {
+		if (len > 0) {
+			LOG_INF("DTLS CID: %d", status);
+		} else {
+			LOG_WRN("No DTLS CID provided");
+		}
+	} else {
+		LOG_ERR("Error retrieving DTLS CID: %d", errno);
+	}
+
+#elif defined(CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID)
 	static struct tls_dtls_peer_cid last_cid;
 	struct tls_dtls_peer_cid cid;
 	int cid_len = 0;
